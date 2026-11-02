@@ -73,7 +73,7 @@ import { fileToShow } from './follow'
 import { NodeRenderer } from './NodeRenderer'
 import { Toolbar } from './Toolbar'
 import { LayoutMotion, MOTION_NODE_LIMIT } from './LayoutMotion'
-import { nodeBody } from './body'
+import { collectPreviewableIds, nodeBody } from './body'
 import { searchState, searchTargets, type SearchState } from './search'
 import { clearMeasureCache, readFont, toggleSize, type FontSpec } from './measure'
 import { clearRichMeasureCache, isRichNode, measureNodeForLayout, measureRichNodes } from './richMeasure'
@@ -148,6 +148,8 @@ export class MindmapView extends ItemView {
   private visibleRenderFrame: number | null = null
   /** 当前 LOD 档位；只在性能模式下离开 detail。 */
   private detailLevel: DetailLevel = 'detail'
+  /** 有直接正文的节点，用于节点小眼睛标记；每次树刷新时重算一次。 */
+  private previewableIds = new Set<string>()
   /** 上一次性能模式渲染的帧、档位和可见节点；纯平移且集合未变时跳过 DOM/连线重算。 */
   private lastRenderFrame: LayoutResult | null = null
   private lastRenderDetail: DetailLevel = 'detail'
@@ -1044,6 +1046,7 @@ export class MindmapView extends ItemView {
 
   private refresh(text: string): void {
     this.tree = reconcile(this.tree, parse(text, this.parseOptions()))
+    this.previewableIds = collectPreviewableIds(this.tree)
     // 被别处删掉的节点不能继续留在选中集合里，否则删除/拖拽会拿着不存在的 id 去生成 plan
     const byId = this.tree.byId
     for (const id of [...this.selection]) if (!byId.has(id)) this.selection.delete(id)
@@ -1091,6 +1094,7 @@ export class MindmapView extends ItemView {
       this.connectors.render([], new Map(), this.style.branch, 0, 0)
       this.boxes = new Map()
       this.renderBoxes = new Map()
+      this.previewableIds = new Set()
       this.order = []
       this.bounds = { x: 0, y: 0, w: 0, h: 0 }
       this.detailLevel = 'detail'
@@ -1138,10 +1142,11 @@ export class MindmapView extends ItemView {
     this.renderBoxes = frame
     const root = rootSide(this.direction)
     const bounds = boundsOf(frame)
+    const bodyIds = this.style.showBodyMarks && detail !== 'far' ? this.previewableIds : undefined
     if (!performance) {
       this.lastRenderFrame = null
       this.lastVisibleNodes = []
-      this.nodeRenderer.render(nodes, frame, this.selection, root, 'detail')
+      this.nodeRenderer.render(nodes, frame, this.selection, root, 'detail', bodyIds)
       this.connectors.render(nodes, frame, this.style.branch, bounds.x + bounds.w, bounds.y + bounds.h)
       return
     }
@@ -1150,7 +1155,7 @@ export class MindmapView extends ItemView {
     if (!viewport) {
       this.lastRenderFrame = null
       this.lastVisibleNodes = []
-      this.nodeRenderer.render([], new Map(), this.selection, root, detail)
+      this.nodeRenderer.render([], new Map(), this.selection, root, detail, undefined)
       this.connectors.render([], new Map(), this.style.branch, 1, 1)
       return
     }
@@ -1160,7 +1165,7 @@ export class MindmapView extends ItemView {
     this.lastRenderFrame = frame
     this.lastRenderDetail = detail
     this.lastVisibleNodes = visible.nodes
-    this.nodeRenderer.render(visible.nodes, frame, this.selection, root, detail)
+    this.nodeRenderer.render(visible.nodes, frame, this.selection, root, detail, bodyIds)
     this.connectors.render(
       nodes,
       frame,

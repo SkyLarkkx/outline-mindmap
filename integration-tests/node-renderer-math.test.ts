@@ -119,5 +119,10 @@ describe('NodeRenderer math integration', () => {
     expect(findByClass(layer, 'is-light')).toHaveLength(2)
     expect(renderMath).not.toHaveBeenCalled()
     expect(finishRenderMath).not.toHaveBeenCalled()
+
+    renderer.render([h1, h4, list], allBoxes, new Set(), 'right', 'detail', new Set(['h1']))
+    expect(findByClass(layer, 'has-body')).toHaveLength(1)
+    renderer.render([h1, h4, list], allBoxes, new Set(), 'right', 'detail')
+    expect(findByClass(layer, 'has-body')).toHaveLength(0)
   })
 })

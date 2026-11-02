@@ -25,6 +25,8 @@ export interface MindmapStyle {
   fontScale: number
   /** 多彩标题：按层级给节点文字与边框着色（层级色板在 styles.css）。 */
   colorByLevel: boolean
+  /** 在有直接正文的节点右下角显示小眼睛标记（细节/中间档可见）。 */
+  showBodyMarks: boolean
 }
 
 /** 各项的取值范围。滑块与「从 data.json 读进来的脏数据」共用同一份，免得两边对不上。 */
@@ -48,6 +50,7 @@ export const DEFAULT_STYLE: MindmapStyle = {
   scheme: 'blue',
   fontScale: 1,
   colorByLevel: false,
+  showBodyMarks: true,
 }
 
 export interface StyleData {
@@ -95,6 +98,7 @@ export function normalizeStyle(raw: unknown, base: MindmapStyle = DEFAULT_STYLE)
     scheme: pick(o['scheme'], SCHEMES, base.scheme),
     fontScale: num(o['fontScale'], base.fontScale, STYLE_LIMITS.fontScale),
     colorByLevel: typeof o['colorByLevel'] === 'boolean' ? o['colorByLevel'] : base.colorByLevel,
+    showBodyMarks: typeof o['showBodyMarks'] === 'boolean' ? o['showBodyMarks'] : base.showBodyMarks,
   }
 }
 
@@ -121,8 +125,9 @@ export function sameStyle(a: MindmapStyle, b: MindmapStyle): boolean {
     a.branch === b.branch &&
     a.scheme === b.scheme &&
     a.fontScale === b.fontScale &&
-    a.colorByLevel === b.colorByLevel
-  )
+    a.colorByLevel === b.colorByLevel &&
+    a.showBodyMarks === b.showBodyMarks
+    )
 }
 
 /**

@@ -102,3 +102,21 @@ export function nodeBody(tree: MindTree, node: MindNode): NodeBody | null {
     toLine: node.titleLine + 1 + end,
   }
 }
+
+/** 节点是否有可预览的直接正文。比 nodeBody 更轻：不构造 markdown，只判断是否存在非空行。 */
+export function hasNodeBody(tree: MindTree, node: MindNode): boolean {
+  if (node.titleLine < 0 || node.bodyEnd <= node.titleLine + 1) return false
+  for (let i = node.titleLine + 1; i < node.bodyEnd; i++) {
+    if (!isBlank(tree.lines[i] ?? '')) return true
+  }
+  return false
+}
+
+/** 全树中所有有直接正文的节点 id；用于节点小眼睛标记，每次树刷新时算一次。 */
+export function collectPreviewableIds(tree: MindTree): Set<string> {
+  const ids = new Set<string>()
+  for (const node of tree.byId.values()) {
+    if (hasNodeBody(tree, node)) ids.add(node.id)
+  }
+  return ids
+}

@@ -114,6 +114,8 @@ const zh = {
   'style.fontScaleDesc': '1.0 表示跟随主题字号。',
   'style.levelColors': '按层级着色',
   'style.levelColorsDesc': '不同层级的节点用不同的颜色显示文字与边框。',
+  'style.bodyMarks': '标记可预览节点',
+  'style.bodyMarksDesc': '在有直接正文的节点右下角显示小眼睛；细节档和中间档显示，远景轻量全景隐藏。',
   'shape.rounded': '圆角矩形',
   'shape.pill': '胶囊',
   'shape.underline': '下划线',
@@ -146,9 +148,9 @@ const zh = {
     '关闭后列表只算正文，导图仅由标题构成。',
   'settings.performanceMode': '大图性能模式',
   'settings.performanceModeDesc':
-    '自动：移动端总节点超过 500 时启用，桌面端保持原样；' +
+    '自动：移动端总节点超过 500、桌面端超过 800 时启用；' +
     '开启：始终只渲染视口附近的节点、使用可读局部首屏并按缩放简化远景；关闭：始终完整渲染。',
-  'settings.performanceModeAuto': '自动（移动端 > 500 节点）',
+  'settings.performanceModeAuto': '自动（移动端 > 500 / 桌面端 > 800）',
   'settings.performanceModeOn': '始终开启',
   'settings.performanceModeOff': '关闭',
   'settings.rememberOpenAs': '记住每篇笔记的打开方式',
@@ -264,6 +266,8 @@ const en: Record<MsgKey, string> = {
   'style.fontScaleDesc': '1.0 follows the theme font size.',
   'style.levelColors': 'Color by level',
   'style.levelColorsDesc': 'Show node text and border in a color that depends on the level.',
+  'style.bodyMarks': 'Mark previewable nodes',
+  'style.bodyMarksDesc': 'Show a small eye on nodes with direct body text. Visible in detail and middle zoom levels; hidden in the far lightweight panorama.',
   'shape.rounded': 'Rounded rectangle',
   'shape.pill': 'Pill',
   'shape.underline': 'Underline',
@@ -297,9 +301,9 @@ const en: Record<MsgKey, string> = {
     'When off, lists count as body text and the map is built from headings only.',
   'settings.performanceMode': 'Large-map performance mode',
   'settings.performanceModeDesc':
-    'Auto: enabled on mobile when the map has more than 500 nodes; desktop keeps the normal renderer. ' +
+    'Auto: enabled on mobile above 500 nodes and on desktop above 800 nodes. ' +
     'On: only render nodes near the viewport, start with a readable local view and simplify far zoom levels. Off: always render the whole map.',
-  'settings.performanceModeAuto': 'Auto (mobile > 500 nodes)',
+  'settings.performanceModeAuto': 'Auto (mobile > 500 / desktop > 800)',
   'settings.performanceModeOn': 'Always on',
   'settings.performanceModeOff': 'Off',
   'settings.rememberOpenAs': 'Remember how each note opens',

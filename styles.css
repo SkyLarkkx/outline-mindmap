@@ -283,6 +283,35 @@
 }
 
 /*
+ * 有直接正文的节点：右下角小眼睛。视图只在细节 / 中间档传入 has-body；
+ * 远景轻量全景不传，避免整图出现密集标记。用 mask 画图标，不增加额外 DOM。
+ */
+.om-node.has-body::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+  opacity: 0.5;
+  pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M12%205C6.5%205%202.7%209.6%202%2012c.7%202.4%204.5%207%2010%207s9.3-4.6%2010-7c-.7-2.4-4.5-7-10-7zm0%2011a4%204%200%201%201%200-8%204%204%200%200%201%200%208z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M12%205C6.5%205%202.7%209.6%202%2012c.7%202.4%204.5%207%2010%207s9.3-4.6%2010-7c-.7-2.4-4.5-7-10-7zm0%2011a4%204%200%201%201%200-8%204%204%200%200%201%200%208z'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: opacity 120ms ease;
+}
+
+.om-node.has-body:hover::after,
+.om-node.has-body.is-selected::after {
+  opacity: 0.9;
+}
+
+.om-node.is-light.has-body::after {
+  display: none;
+}
+
+/*
  * 远景 LOD：H4–H6 和列表项只保留空盒子，不创建文字、公式或折叠按钮。
  * 盒子尺寸仍来自完整布局，因此缩放时不会因为文字消失而跳动。
  */

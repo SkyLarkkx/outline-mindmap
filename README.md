@@ -5,7 +5,7 @@
 > **This is a personal fork** of [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap),
 > based on upstream **v1.3.4**. It adds node-body previews, safe inline HTML in node labels, ordered-list
 > nodes and some robustness fixes while keeping the same note format and plugin id.
-> Current fork release: **1.6.0**.
+> Current fork release: **1.7.0**.
 > Fork: [SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
 
 Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers. This fork additionally lets you **preview a node’s body in place**, render **a safe subset of inline HTML** in node labels, and use **ordered lists as ordinary list nodes**.
@@ -16,15 +16,15 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 
 ![Outline Mindmap demo](demo1.png)
 
-- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.6.0 (upstream base v1.3.4)**
+- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.7.0 (upstream base v1.3.4)**
 - The interface follows Obsidian's language: 中文 / English, no setting to touch.
 
 ## Features
 
 ### Fork additions (not present in upstream v1.3.4)
 
-- **Node body preview**: Hover a node to preview its direct body with Obsidian’s `MarkdownRenderer`; HTML, images, tables, math and embeds work as they do in Reading view. Pin the preview into a side panel or toggle it from the toolbar; the pinned panel is resizable, and the touch long-press sheet is independent of it. It is read-only and never writes to the note.
-- **Large-map performance mode**: Automatically enabled on mobile above 500 total nodes. The first view focuses the first root branch at a readable scale, only nodes and edges near the viewport are created, and zoom-based LOD keeps H1–H3 text while turning deeper headings and list nodes into lightweight boxes at the far view. Desktop auto behavior is unchanged; settings can force it on or off.
+- **Node body preview**: Hover a node to preview its direct body with Obsidian’s `MarkdownRenderer`; HTML, images, tables, math and embeds work as they do in Reading view. Pin the preview into a side panel or toggle it from the toolbar; the pinned panel is resizable, and the touch long-press sheet is independent of it. A small eye in the node’s bottom-right corner marks nodes with direct body text (detail/middle zoom only). It is read-only and never writes to the note.
+- **Large-map performance mode**: Automatically enabled on mobile above 500 total nodes and on desktop above 800. The first view focuses the first root branch at a readable scale, only nodes and edges near the viewport are created, and zoom-based LOD keeps H1–H3 text while turning deeper headings and list nodes into lightweight boxes at the far view. Settings can force it on or off.
 - **Safe inline HTML in node labels**: `<span style="…">`, `mark`, `font`, `strong`, `em`, `sup`, `sub`, `br` and similar inline tags render inside the node itself. A CSS allowlist removes scripts, iframes, event attributes and `url()` values; block-level HTML and images in node labels are intentionally not supported.
 - **Ordered-list nodes**: `1.` / `1)` items are parsed as ordinary list nodes without a visible ordinal. Source markers are preserved on rename/move; new ordered siblings inherit the reference delimiter and new children use `-`; there is no automatic renumbering.
 - **Body table rendering**: Preview bodies are de-indented before rendering, so Tab-indented Markdown and HTML tables no longer turn into code blocks. The preview also supplies readable table borders and cell spacing.
@@ -124,6 +124,7 @@ behave as they do in Reading view.
 - The `Hover preview` setting (on by default) controls the automatic desktop hover behavior; touch long-press remains available.
 - The preview is **read-only**: editing still happens in the note; the preview never writes anything.
 - Child headings are separate nodes. Hover the child to preview its body, not the parent’s.
+- Nodes with direct body text show a small eye marker at their bottom-right corner. It is hidden in the far LOD view; toggle it under **Style settings → Mark previewable nodes**.
 
 Internal links in the preview open in a new tab. The body preview itself does not change node
 geometry and does not turn body text into map nodes.
@@ -214,7 +215,7 @@ pan from a node as well as empty space; tapping still selects or locates it.
 | 优雅动画 (Smooth animation) | On | Nodes and edges move together. Disabled above 250 visible nodes or when the system requests reduced motion |
 | 严格换行 (Strict blank lines) | Off | When enabled, adding / moving nodes pads adjacent headings to 3 blank lines apart |
 | 把列表项显示为节点 (Show list items as nodes) | Off | Turn it off and the map shows headings only: list items go back to being body text under their heading. The note itself is not touched; switching back restores every list node. While it is off, adding or dragging past level 6 is blocked with a notice — a level-7 heading has no visible syntax to write |
-| 大图性能模式 (Large-map performance mode) | Auto | Auto: enabled on mobile when the map has more than 500 total nodes; desktop auto mode keeps the complete renderer. On: always enabled. Off: always render completely. When enabled, the first view shows a readable local area, only nodes/edges near the viewport are created, and zoom-based LOD simplifies far views |
+| 大图性能模式 (Large-map performance mode) | Auto | Auto: mobile above 500 total nodes, desktop above 800. On: always enabled. Off: always render completely. When enabled, the first view shows a readable local area, only nodes/edges near the viewport are created, and zoom-based LOD simplifies far views |
 | 记住每篇笔记的打开方式 (Remember how each note opens) | On | A note converted with **Open as mindmap** opens as a mindmap next time, in whichever tab it appears; **Open as note** restores it, in the Reading / Editing mode it had when converted. The record lives only in the plugin's `data.json` and is migrated or cleaned up when the note is renamed, moved or deleted. Switching form does not enter tab history, so *Back* / *Forward* move between notes only |
 
 Styles — shape, colour scheme, **colour by level**, font size, horizontal and vertical gaps,
@@ -234,9 +235,9 @@ a new child under an ordered item is written as `-`, and source numbers are not 
 
 Pan and zoom update a single container transform; edges share one path and node events are delegated. Animation is disabled above 250 visible nodes or when reduced motion is requested.
 
-**Large-map performance mode (1.5.0+, LOD in 1.6.0):**
+**Large-map performance mode (1.5.0+, LOD in 1.6.0, desktop auto in 1.7.0):**
 
-- Enabled automatically on **mobile when the map has more than 500 total nodes**; desktop auto behavior is unchanged. Settings can force it on or off.
+- Enabled automatically on **mobile above 500 total nodes** and **desktop above 800**; settings can force it on or off.
 - The first view no longer fits the whole map at an unreadable scale: it focuses the first root branch at 0.9. A very distant viewport saved by an older version keeps its centre but is raised to a readable scale.
 - Only nodes near the viewport (plus a 240px pre-render margin) enter the DOM. Edges are generated only for rendered child nodes. Pan/zoom updates are coalesced into the next animation frame.
 - Zoom-based LOD suppresses rich HTML, links and MathJax when zoomed out. In the middle range, nodes use plain text only. In the far range, H1–H3 keep plain text while H4–H6 and all list nodes become textless lightweight boxes. Hysteresis around the thresholds prevents flicker.
@@ -276,11 +277,17 @@ If the vault already has this plugin under a differently-named folder, it reuses
 rather than creating a second copy with the same plugin id.
 
 Before publishing a fork build, run `npm test` and `npm run build`. Keep `manifest.json`,
-`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.6.0`;
+`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.7.0`;
 the upstream base remains `1.3.4`. If you publish release assets, attach `main.js`, `manifest.json`
 and `styles.css`. **The tag carries no `v` prefix** — Obsidian looks releases up by the bare version number.
 
 ## What's new
+
+### Fork v1.7.0
+
+- **Desktop auto performance mode**: The default Auto setting now enables performance mode on desktop above 800 total nodes; mobile keeps its 500-node threshold. Manual On/Off still overrides it.
+- **Previewable-node eye marker**: Nodes with direct body text show a small eye in the bottom-right padding. The marker appears in detail and middle LOD levels and is hidden in the far lightweight panorama. A per-note/global “Mark previewable nodes” toggle lives in the toolbar’s Style settings.
+- **Body detection cache**: Previewable nodes are computed once per tree refresh, so the marker does not add per-frame layout or DOM work.
 
 ### Fork v1.6.0
 

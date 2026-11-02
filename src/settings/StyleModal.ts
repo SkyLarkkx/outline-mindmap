@@ -169,6 +169,13 @@ export class StyleModal extends Modal {
       )
 
     new Setting(host)
+      .setName(t('style.bodyMarks'))
+      .setDesc(t('style.bodyMarksDesc'))
+      .addToggle((s) =>
+        s.setValue(this.draft.showBodyMarks).onChange((v) => this.update({ showBodyMarks: v })),
+      )
+
+    new Setting(host)
       .setName(t('style.fontScale'))
       .setDesc(t('style.fontScaleDesc'))
       .addSlider((s) =>

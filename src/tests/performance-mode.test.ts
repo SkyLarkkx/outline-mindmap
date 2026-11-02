@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DESKTOP_PERFORMANCE_NODE_THRESHOLD,
   normalizePerformanceMode,
   PERFORMANCE_NODE_THRESHOLD,
   shouldUsePerformanceMode,
@@ -23,10 +24,11 @@ describe('performance mode', () => {
     expect(normalizePerformanceMode('off')).toBe('off')
   })
 
-  it('auto only starts on mobile above the 500-node threshold', () => {
+  it('uses 500 on mobile and 800 on desktop for the auto mode', () => {
     expect(shouldUsePerformanceMode('auto', true, PERFORMANCE_NODE_THRESHOLD)).toBe(false)
     expect(shouldUsePerformanceMode('auto', true, PERFORMANCE_NODE_THRESHOLD + 1)).toBe(true)
-    expect(shouldUsePerformanceMode('auto', false, 5000)).toBe(false)
+    expect(shouldUsePerformanceMode('auto', false, DESKTOP_PERFORMANCE_NODE_THRESHOLD)).toBe(false)
+    expect(shouldUsePerformanceMode('auto', false, DESKTOP_PERFORMANCE_NODE_THRESHOLD + 1)).toBe(true)
     expect(shouldUsePerformanceMode('on', false, 1)).toBe(true)
     expect(shouldUsePerformanceMode('off', true, 5000)).toBe(false)
   })

@@ -51,6 +51,13 @@ describe('normalizeStyle（脏配置收拢）', () => {
     expect(normalizeStyle({ branch: 'zigzag' }).branch).toBe('elbow')
   })
 
+  it('正文小眼睛开关是合法布尔值，缺省跟随基准', () => {
+    expect(DEFAULT_STYLE.showBodyMarks).toBe(true)
+    expect(normalizeStyle({ showBodyMarks: false }).showBodyMarks).toBe(false)
+    expect(normalizeStyle({ showBodyMarks: 'no' }).showBodyMarks).toBe(true)
+    expect(normalizeStyle({}, { ...DEFAULT_STYLE, showBodyMarks: false }).showBodyMarks).toBe(false)
+  })
+
   it('折线是合法的分支样式（M11 新增），旧版本存下的值也照收', () => {
     expect(normalizeStyle({ branch: 'elbow' }).branch).toBe('elbow')
     expect(normalizeStyle({ branch: 'straight' }).branch).toBe('straight')
@@ -269,5 +276,6 @@ describe('colorByLevel', () => {
 
   it('sameStyle 把它算作差异项', () => {
     expect(sameStyle(DEFAULT_STYLE, styleWith({ colorByLevel: true }))).toBe(false)
+    expect(sameStyle(DEFAULT_STYLE, styleWith({ showBodyMarks: false }))).toBe(false)
   })
 })

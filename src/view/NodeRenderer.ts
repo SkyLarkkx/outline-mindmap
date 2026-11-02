@@ -25,6 +25,7 @@ interface Slot {
   /** 上一次的文字渲染档位：rich = 富 HTML/MathJax，plain = 纯文本，none = 空盒子。 */
   mode: NodeTextMode
   light: boolean
+  hasBody: boolean
   transform: string
   w: number
   h: number
@@ -85,6 +86,7 @@ export class NodeRenderer {
     selected: ReadonlySet<string>,
     rootSide: NodeSide = 'right',
     detail: DetailLevel = 'detail',
+    bodyIds?: ReadonlySet<string>,
   ): void {
     const keep = new Set<string>()
     let needsMathFinish = false
@@ -95,7 +97,15 @@ export class NodeRenderer {
       keep.add(node.id)
       const slot = this.active.get(node.id) ?? this.acquire(node.id)
       const parentBox = node.parent ? boxes.get(node.parent.id) : undefined
-      if (this.update(slot, node, box, selected.has(node.id), sideOf(box, parentBox, rootSide), textModeFor(node, detail))) {
+      if (this.update(
+        slot,
+        node,
+        box,
+        selected.has(node.id),
+        sideOf(box, parentBox, rootSide),
+        textModeFor(node, detail),
+        bodyIds?.has(node.id) === true,
+      )) {
         needsMathFinish = true
       }
     }
@@ -182,6 +192,7 @@ export class NodeRenderer {
       searchKey: '',
       mode: 'rich',
       light: false,
+      hasBody: false,
       transform: '',
       w: -1,
       h: -1,
@@ -302,6 +313,7 @@ export class NodeRenderer {
     selected: boolean,
     side: NodeSide,
     mode: NodeTextMode,
+    hasBody: boolean,
   ): boolean {
     let renderedMath = false
     const terms = this.search.get(node.id)
@@ -320,6 +332,10 @@ export class NodeRenderer {
     if (slot.light !== light) {
       slot.el.classList.toggle('is-light', light)
       slot.light = light
+    }
+    if (slot.hasBody !== hasBody) {
+      slot.el.classList.toggle('has-body', hasBody)
+      slot.hasBody = hasBody
     }
 
     const transform = `translate(${box.x}px, ${box.y}px)`

@@ -7,6 +7,9 @@ export type PerformanceMode = 'auto' | 'on' | 'off'
 /** 移动端自动启用性能模式的总节点数阈值（包含折叠中的节点）。 */
 export const PERFORMANCE_NODE_THRESHOLD = 500
 
+/** 桌面端自动启用性能模式的总节点数阈值。 */
+export const DESKTOP_PERFORMANCE_NODE_THRESHOLD = 800
+
 /** 大图首屏聚焦第一个根分支时使用的可读缩放比例。 */
 export const PERFORMANCE_READABLE_SCALE = 0.9
 
@@ -19,7 +22,7 @@ export function normalizePerformanceMode(raw: unknown): PerformanceMode {
 
 /**
  * @param mode 用户设置：自动 / 强制开启 / 关闭
- * @param isMobile 当前是否为移动端（Obsidian Platform.isMobile）
+ * @param isMobile 当前是否为移动端（Obsidian Platform.isMobile）；桌面端使用更高的阈值
  * @param nodeCount 整棵树的总节点数，包含折叠中的节点
  */
 export function shouldUsePerformanceMode(
@@ -29,5 +32,6 @@ export function shouldUsePerformanceMode(
 ): boolean {
   if (mode === 'on') return true
   if (mode === 'off') return false
-  return isMobile && nodeCount > PERFORMANCE_NODE_THRESHOLD
+  const threshold = isMobile ? PERFORMANCE_NODE_THRESHOLD : DESKTOP_PERFORMANCE_NODE_THRESHOLD
+  return nodeCount > threshold
 }

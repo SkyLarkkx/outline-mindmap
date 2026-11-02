@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parse } from '../core/parser'
 import type { ParseOptions } from '../core/types'
-import { nodeBody } from '../view/body'
+import { collectPreviewableIds, hasNodeBody, nodeBody } from '../view/body'
 import { allNodes } from './helpers'
 
 const OPTIONS: ParseOptions = { strictLineBreak: false, listNodes: true }
@@ -51,6 +51,17 @@ describe('节点正文预览范围', () => {
   it('Tab 缩进的 Markdown 表格会去掉公共缩进，交给 MarkdownRenderer 正常解析', () => {
     const body = bodyOf('## 根\n- 列表项\n\t| 甲 | 乙 |\n\t| --- | --- |\n\t| 1 | 2 |\n', 1)
     expect(body?.markdown).toBe('| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |')
+  })
+
+  it('区分有正文和只有子节点的节点，并一次性收集可预览 id', () => {
+    const tree = parse(['# 根', '', '根正文', '', '## 有正文', '', '子正文', '', '## 没正文', '### 孙', '', '孙正文', ''].join(String.fromCharCode(10)), OPTIONS)
+    const root = allNodes(tree)[0]!
+    const withBody = allNodes(tree)[1]!
+    const withoutBody = allNodes(tree)[2]!
+    expect(hasNodeBody(tree, root)).toBe(true)
+    expect(hasNodeBody(tree, withBody)).toBe(true)
+    expect(hasNodeBody(tree, withoutBody)).toBe(false)
+    expect(collectPreviewableIds(tree)).toEqual(new Set([root.id, withBody.id, allNodes(tree)[3]!.id]))
   })
 
   it('Tab 缩进的 HTML 表格同样恢复正常渲染', () => {
