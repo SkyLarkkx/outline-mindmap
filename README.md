@@ -2,7 +2,12 @@
 
 **English** · [中文](readme-zh.md) · [插件介绍（可在 Obsidian 里直接打开的演示笔记）](插件介绍.md)
 
-Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers.
+> **This is a personal fork** of [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap),
+> based on upstream **v1.3.4**. It adds node-body previews, safe inline HTML in node labels, ordered-list
+> nodes and some robustness fixes while keeping the same note format and plugin id.
+> Fork: [SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
+
+Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers. This fork additionally lets you **preview a node’s body in place**, render **a safe subset of inline HTML** in node labels, and use **ordered lists as ordinary list nodes**.
 
 ![Outline Mindmap demo](demo.gif)
 
@@ -10,15 +15,27 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 
 ![Outline Mindmap demo](demo1.png)
 
-- **Obsidian** 1.7.2+ · desktop and mobile · **v1.3.4**
+- **Obsidian** 1.7.2+ · desktop and mobile · **upstream v1.3.4 + fork additions**
 - The interface follows Obsidian's language: 中文 / English, no setting to touch.
 
 ## Features
 
+### Fork additions (not present in upstream v1.3.4)
+
+- **Node body preview**: Hover a node to preview its direct body with Obsidian’s `MarkdownRenderer`; HTML, images, tables, math and embeds work as they do in Reading view. Pin the preview into a side panel or toggle it from the toolbar. It is read-only and never writes to the note.
+- **Safe inline HTML in node labels**: `<span style="…">`, `mark`, `font`, `strong`, `em`, `sup`, `sub`, `br` and similar inline tags render inside the node itself. A CSS allowlist removes scripts, iframes, event attributes and `url()` values; block-level HTML and images in node labels are intentionally not supported.
+- **Ordered-list nodes**: `1.` / `1)` items are parsed as ordinary list nodes without a visible ordinal. Source markers are preserved on rename/move; new ordered siblings inherit the reference delimiter and new children use `-`; there is no automatic renumbering.
+- **Body table rendering**: Preview bodies are de-indented before rendering, so Tab-indented Markdown and HTML tables no longer turn into code blocks. The preview also supplies readable table borders and cell spacing.
+- **Robustness fixes**: Inline `==highlight==` now uses current Obsidian highlight variables with legacy fallbacks, and rich HTML labels get a width cushion to prevent the last glyph from wrapping.
+
+The fork keeps the upstream rule that the note is the only data source: there are no hidden markers, no frontmatter, no external database for map content, and existing list markers are preserved instead of being silently rewritten. The upstream features below remain unchanged unless explicitly noted.
+
+### Upstream features
+
 - **Two-way editing**: Add, rename, delete and rearrange nodes. Body text moves with its heading; write-back replaces only the affected line range and preserves surrounding content and formatting.
 - **Navigation**: Locate nodes in a visible note, including Reading view. Search results reveal and highlight matches; undo/redo also works in map-only mode.
 - **Note ⇄ map**: Switch within the same tab and optionally remember how each note opens.
-- **Flexible content**: Show headings by default or enable list nodes, with inline formatting, link labels and math.
+- **Flexible content**: Show headings by default or enable list nodes, with inline formatting, link labels and math. This fork also supports ordered lists and the safe inline HTML described above.
 - **Styles and layout**: Customize shapes, colors, fonts, spacing, edges and branch direction, with global/per-note settings, live preview and Cancel.
 - **Convenient controls**: Keyboard shortcuts, smooth animation, per-note locking, zoom and position memory, and touch pinch/pan.
 
@@ -26,22 +43,22 @@ One map action is one undo. Open editors use native history; map-only views use 
 
 ## Install
 
-Not in the community plugin browser yet, so install manually:
+This fork is not in the community plugin browser. Install it manually:
 
-1. Download `main.js`, `manifest.json` and `styles.css` from the
-   [Releases](../../releases/latest) page — those three files are the whole plugin.
-2. Put them in `<your vault>/.obsidian/plugins/outline-mindmap/`
-3. Enable **Outline Mindmap** under *Settings → Community plugins*
+1. Build the plugin from this fork:
 
-`main.js` is a build artifact and is **not** committed here, so cloning the repository is not a
-shortcut to installing — build it, or take the release.
+   ```bash
+   npm ci
+   npm run build     # type-check + bundle into main.js
+   ```
 
-Building from source:
+2. Put `main.js`, `manifest.json` and `styles.css` into
+   `<your vault>/.obsidian/plugins/outline-mindmap/`.
+3. Enable **Outline Mindmap** under *Settings → Community plugins*.
 
-```bash
-npm ci
-npm run build     # type-check + bundle into main.js
-```
+The built `main.js` and `styles.css` are also committed in this fork for convenience. They are
+generated artifacts; if you change the source, rebuild before copying them. Upstream release
+assets, if any, belong to upstream v1.3.4 and do not include the fork additions described here.
 
 ## Usage
 
@@ -66,7 +83,7 @@ In map-only mode, a node click selects it without opening a note. To read prose 
 | --- | --- |
 | `# Heading` … `###### Heading` | Levels 1–6 |
 | `- list item` / `1. list item` (one level = 4 spaces or one tab of indent) | Level 7 and deeper (can be turned off — see *Show list items as nodes*) |
-| Body paragraphs under a heading | Not shown, but **move together with their heading** |
+| Body paragraphs under a heading | Not map nodes; hover the heading (or pin the preview) to read them |
 | A `#` inside a fenced code block | Not a heading, never appears in the map |
 
 Inline markup in node text — `**bold**`, `*italic*`, `***bold italic***`, `==highlight==`,
@@ -89,6 +106,52 @@ Links show **only the readable part**, so paths and URLs cost no node width:
 Link text is tinted with the theme's link colour but is **not clickable** — a click in the map
 already means "jump to the matching line in the note", and competing for the same click would
 only make it unpredictable.
+
+### Node body preview
+
+Hover a node for about 0.3 seconds to open a preview of its **direct body** — the lines after the
+heading/list item and before its first child heading/list item. The preview is rendered by
+Obsidian’s `MarkdownRenderer`, so HTML, images, formulas, Markdown/HTML tables and embedded content
+behave as they do in Reading view.
+
+- Move the pointer into the preview to keep it open and scroll; it closes after the pointer leaves.
+- Use the pin button to keep it open as a side panel.
+- The toolbar’s eye button opens/closes a pinned preview for the selected node.
+- The `Hover preview` setting (on by default) controls the automatic hover behavior.
+- The preview is **read-only**: editing still happens in the note; the preview never writes anything.
+- Child headings are separate nodes. Hover the child to preview its body, not the parent’s.
+
+Internal links in the preview open in a new tab. The body preview itself does not change node
+geometry and does not turn body text into map nodes.
+
+### Inline HTML in node labels
+
+A node label can contain a conservative subset of inline HTML, for example:
+
+```md
+- <span style="background-color: #4472C4; color: white; padding: 4px 8px; border-radius: 4px;">微指令的设计</span>
+```
+
+Supported tags include `span`, `font`, `mark`, `strong`, `b`, `em`, `i`, `u`, `s`, `sup`, `sub`,
+`br`, `code`, `kbd`, `small`, `abbr` and similar inline tags. A limited set of layout-safe CSS
+properties (colour, background, padding, margin, border, border-radius, font size/weight/style,
+line-height, etc.) is preserved. Scripts, iframes, event attributes, `url()` values and block-level
+HTML are rejected.
+
+F2/double-click still edits the raw Markdown source. Full block HTML, HTML tables and images are
+not supported **inside node labels**; use the body preview for those.
+
+### Ordered lists
+
+Ordered list items are ordinary list nodes without a visible ordinal. Their vertical order follows
+the note. The original marker is preserved when renaming or moving a node.
+
+- A new sibling of an ordered item inherits the reference delimiter and is written as `1.` or `1)`.
+- A new child under an ordered item is written as `-` (unordered).
+- Source numbers are **not automatically renumbered**.
+- With **colour by level** enabled, text keeps the level colour while the node border and background
+  use a list-type accent. `1.` uses a solid border and lighter background; `1)` uses a dashed border
+  and a slightly stronger background.
 
 ### Keyboard
 
@@ -114,7 +177,7 @@ when a branch runs leftwards, `←` is the key that takes you *into* its childre
 
 ### Toolbar
 
-Fit to canvas · Zoom out · Zoom in · Expand all · Collapse all · Lock · Style settings.
+Fit to canvas · Zoom out · Zoom in · Expand all · Collapse all · Preview node body · Lock · Style settings.
 
 Layout direction (branches right / left / both sides) is in **Style settings**, with the same
 global and per-note saving, live preview and Cancel behavior as other styles.
@@ -142,6 +205,7 @@ pan from a node as well as empty space; tapping still selects or locates it.
 | Toggle | Default | What it does |
 | --- | --- | --- |
 | 单击即跳转 (Click to jump) | On | Clicking a node scrolls the visible note to the matching heading or list item and highlights it in both Editing and Reading view (focus stays on the map); after you create / rename / delete / drag a node, the note also stays at that node. **It only scrolls a note that is already visible on screen** — it never opens a tab, never splits a pane, never pulls a background tab to the front. Turn it off and a click only selects |
+| 悬停预览正文 (Hover preview) | On | Hovering a node opens a read-only preview of its direct body rendered by Obsidian’s MarkdownRenderer. HTML, images, tables, math and embeds are supported. Turn it off to disable automatic hover previews; the toolbar’s eye button can still open a pinned preview |
 | 固定显示一篇笔记 (Always show one note) | Off | The map stops following the active note and stays on the one it was opened with |
 | 优雅动画 (Smooth animation) | On | Nodes and edges move together. Disabled above 250 visible nodes or when the system requests reduced motion |
 | 严格换行 (Strict blank lines) | Off | When enabled, adding / moving nodes pads adjacent headings to 3 blank lines apart |
@@ -169,10 +233,11 @@ The repository includes a [1000-node stress note](bench/1000节点压力测试�
 
 ## Known limitations
 
-- Text-only maps: no summaries, no free-form connections, no images, no notes.
+- The map itself is still outline-based: node labels are plain text plus the safe inline HTML subset above. This is not a full Markdown/HTML page inside every node; block HTML, tables and images belong in the read-only body preview.
+- The body preview shows a node’s **direct body only** (up to its first child); child sections are separate previews. It is read-only and never writes to the note.
+- Ordered list items are shown without visible numbers; source numbers are not automatically renumbered after insert/delete/move.
 - Collapsed state is not persisted; switching notes resets it.
-- Task list items `- [ ]` are treated as plain text; ordered list items are ordinary list nodes without
-  a visible number, and source numbers are not automatically renumbered.
+- Task list items `- [ ]` are treated as plain text.
 - Multi-select (`Ctrl/⌘ + click`) is for batch deletion only, not batch drag.
 
 ## Development
@@ -196,35 +261,44 @@ It overwrites only `main.js`, `manifest.json` and `styles.css` — never `data.j
 If the vault already has this plugin under a differently-named folder, it reuses that folder
 rather than creating a second copy with the same plugin id.
 
-Before publishing, run `npm test` and `npm run build`. Keep `manifest.json`,
-`package.json`, `package-lock.json` and `versions.json` in sync, then attach
-`main.js`, `manifest.json` and `styles.css` to the `1.3.4` GitHub release.
-**The tag carries no `v` prefix** — Obsidian looks releases up by the bare version number.
+Before publishing a fork build, run `npm test` and `npm run build`. Keep `manifest.json`,
+`package.json`, `package-lock.json` and `versions.json` in sync. The base version remains `1.3.4`;
+the fork additions are documented above rather than given a separate marketplace version. If you
+publish release assets, attach `main.js`, `manifest.json` and `styles.css`. **The tag carries no
+`v` prefix** — Obsidian looks releases up by the bare version number.
 
 ## What's new
 
-### v1.3.4
+### Fork additions (based on upstream v1.3.4)
+
+- **Node body preview**: Hover or pin a read-only preview of a node’s direct body, rendered with Obsidian’s MarkdownRenderer (HTML, images, tables, math, embeds). Includes a toolbar button and the `Hover preview` setting.
+- **Safe inline HTML labels**: Render `<span style="…">`, `mark`, `font`, inline formatting tags and safe CSS inside node labels; block HTML, scripts, iframes and event attributes are rejected.
+- **Ordered-list nodes**: Parse `1.` and `1)` items as ordinary list nodes without visible ordinals; preserve source markers, inherit the delimiter for new siblings, use `-` for new children, and never auto-renumber.
+- **Body table rendering**: Normalize Tab-indented preview bodies and provide readable Markdown/HTML table styles.
+- **Fixes**: Restore visible inline `==highlight==` using current Obsidian highlight variables with legacy fallbacks; add a width cushion to rich HTML labels so the last glyph does not wrap.
+
+### Upstream v1.3.4
 
 - **Map locking**: Remember manual locks per note; Reading view forces locking. Locked maps prevent editing while still showing live note changes.
 - **Layout settings**: Move branch direction into Style settings, with global/per-note saving, live preview and Cancel.
 - **Viewport memory**: Restore each note’s zoom and position; show a nearby node if the saved region is empty.
 - **Touch improvements**: Add pinch zoom and two-finger pan, reduce drag conflicts and accidental clicks, and enlarge toolbar/fold touch targets.
 
-### v1.3.3
+### Upstream v1.3.3
 
 - Add map-only undo/redo and search-result navigation/highlighting; refine level colors and node/edge animation.
 - Update default styles and options while preserving existing settings and per-note styles.
 
-### v1.3.2
+### Upstream v1.3.2
 
 - Remember how each note opens, distinguish following and pinned maps, and fix stale content after switching notes.
 - Improve in-place conversion and tab history without opening duplicate tabs.
 
-### v1.3.1
+### Upstream v1.3.1
 
 - Improve click-to-locate in Reading view and add inline math rendering.
 
-### v1.3.0
+### Upstream v1.3.0
 
 - Add Chinese/English UI, optional list nodes and level colors.
 
