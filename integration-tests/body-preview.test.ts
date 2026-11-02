@@ -53,4 +53,28 @@ describe('body preview', () => {
     preview.destroy()
     expect(host.children).toEqual([])
   })
+
+  it('opens a transient touch preview and hides it on demand', async () => {
+    const host = new FakeElement()
+    const preview = new BodyPreview({
+      app: { workspace: { openLinkText: vi.fn() } } as any,
+      host: host as any,
+      getAnchor: () => rect(0, 0, 100, 40),
+    })
+    const state = {
+      nodeId: 'n2', title: '长按标题', markdown: '长按正文', sourcePath: 'a.md',
+      fromLine: 5, toLine: 6,
+    }
+    preview.showTouch(state)
+    expect(preview.visible).toBe(true)
+    expect(preview.pinned).toBe(false)
+    expect(findByClass(host, 'om-preview')[0]?.classList.contains('is-touch')).toBe(true)
+    await vi.waitFor(() => {
+      expect(findByClass(host, 'om-preview-rendered')[0]?.children.length).toBeGreaterThan(0)
+    })
+    preview.hideTouch()
+    expect(preview.visible).toBe(false)
+    expect(findByClass(host, 'om-preview')[0]?.classList.contains('is-hidden')).toBe(true)
+    preview.destroy()
+  })
 })

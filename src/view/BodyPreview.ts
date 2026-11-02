@@ -18,7 +18,7 @@ import {
 } from 'obsidian'
 import { t } from '../i18n'
 
-export type BodyPreviewMode = 'hover' | 'pinned'
+export type BodyPreviewMode = 'hover' | 'pinned' | 'touch'
 
 export interface BodyPreviewState {
   nodeId: string
@@ -111,7 +111,7 @@ export class BodyPreview {
   showHover(state: BodyPreviewState): void {
     if (this.mode === 'pinned') return
     this.mode = 'hover'
-    this.el.removeClass('is-pinned')
+    this.el.removeClass('is-pinned', 'is-touch')
     this.el.addClass('is-hover')
     this.open = true
     this.el.removeClass('is-hidden')
@@ -119,12 +119,25 @@ export class BodyPreview {
     this.positionHover()
   }
 
+  /** 触屏长按：停靠为底部面板，松开后由视图调用 hideTouch()。 */
+  showTouch(state: BodyPreviewState): void {
+    if (this.mode === 'pinned') return
+    this.mode = 'touch'
+    this.open = true
+    this.el.removeClass('is-hover', 'is-pinned')
+    this.el.addClass('is-touch')
+    this.el.removeClass('is-hidden')
+    // 悬浮态的 left/top 是行内样式；touch 模式用 CSS 固定底部。
+    this.el.setCssStyles({ left: '', top: '' })
+    this.setState(state)
+  }
+
   /** 打开右侧面板。 */
   showPinned(state: BodyPreviewState): void {
     const wasPinned = this.pinned
     this.mode = 'pinned'
     this.open = true
-    this.el.removeClass('is-hover')
+    this.el.removeClass('is-hover', 'is-touch')
     this.el.addClass('is-pinned')
     this.el.removeClass('is-hidden')
     // 悬浮态留下的 left / top 是行内样式，会盖住 .is-pinned 的 right / top。
@@ -144,6 +157,11 @@ export class BodyPreview {
     this.close(restoreFocus)
   }
 
+  hideTouch(): void {
+    if (this.mode !== 'touch' || !this.open) return
+    this.close(false)
+  }
+
   close(restoreFocus = false): void {
     const wasPinned = this.pinned
     const wasOpen = this.open
@@ -153,7 +171,7 @@ export class BodyPreview {
     this.open = false
     this.mode = 'hover'
     this.el.addClass('is-hidden')
-    this.el.removeClass('is-pinned', 'is-hover')
+    this.el.removeClass('is-pinned', 'is-hover', 'is-touch')
     this.contentEl.empty()
     this.titleEl.setText('')
     this.metaEl.setText('')

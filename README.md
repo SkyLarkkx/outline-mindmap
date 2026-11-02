@@ -5,7 +5,7 @@
 > **This is a personal fork** of [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap),
 > based on upstream **v1.3.4**. It adds node-body previews, safe inline HTML in node labels, ordered-list
 > nodes and some robustness fixes while keeping the same note format and plugin id.
-> Current fork release: **1.4.1**.
+> Current fork release: **1.4.2**.
 > Fork: [SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
 
 Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers. This fork additionally lets you **preview a node’s body in place**, render **a safe subset of inline HTML** in node labels, and use **ordered lists as ordinary list nodes**.
@@ -16,7 +16,7 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 
 ![Outline Mindmap demo](demo1.png)
 
-- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.4.1 (upstream base v1.3.4)**
+- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.4.2 (upstream base v1.3.4)**
 - The interface follows Obsidian's language: 中文 / English, no setting to touch.
 
 ## Features
@@ -116,9 +116,10 @@ Obsidian’s `MarkdownRenderer`, so HTML, images, formulas, Markdown/HTML tables
 behave as they do in Reading view.
 
 - Move the pointer into the preview to keep it open and scroll; it closes after the pointer leaves.
-- Use the pin button to keep it open as a side panel.
+- On touch devices, **long-press a node for 500ms** to show a transient bottom-sheet preview; release or move more than 10px to dismiss it. Desktop hover behavior is unchanged.
+- Use the pin button to keep it open as a side panel; on touch, use the toolbar eye button for a persistent preview.
 - The toolbar’s eye button opens/closes a pinned preview for the selected node.
-- The `Hover preview` setting (on by default) controls the automatic hover behavior.
+- The `Hover preview` setting (on by default) controls the automatic desktop hover behavior; touch long-press remains available.
 - The preview is **read-only**: editing still happens in the note; the preview never writes anything.
 - Child headings are separate nodes. Hover the child to preview its body, not the parent’s.
 
@@ -263,11 +264,16 @@ If the vault already has this plugin under a differently-named folder, it reuses
 rather than creating a second copy with the same plugin id.
 
 Before publishing a fork build, run `npm test` and `npm run build`. Keep `manifest.json`,
-`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.4.1`;
+`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.4.2`;
 the upstream base remains `1.3.4`. If you publish release assets, attach `main.js`, `manifest.json`
 and `styles.css`. **The tag carries no `v` prefix** — Obsidian looks releases up by the bare version number.
 
 ## What's new
+
+### Fork v1.4.2
+
+- **Touch long-press preview**: On touch devices, hold a node for 500ms to open its body preview as a transient bottom sheet; releasing or moving more than 10px dismisses it. Desktop hover previews are unchanged, and the toolbar eye button still opens a persistent preview.
+- Long-press gesture arbitration avoids accidental node jumps, edits and drags; iOS native callout is suppressed on nodes.
 
 ### Fork v1.4.1
 
