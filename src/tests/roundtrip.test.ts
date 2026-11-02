@@ -73,7 +73,7 @@ describe('断言 3b：规范文本上，serializeNode 重写节点行后全文�
           {
             fromLine: node.titleLine,
             toLine: node.titleLine + 1,
-            lines: [serializeNode(node.text, node.depth, node.kind, listBaseDepthOf(node))],
+            lines: [serializeNode(node.text, node.depth, node.kind, listBaseDepthOf(node), node.list)],
           },
         ]
         const out = joinLines(applyPlan(tree.lines, plan), tree.eol)

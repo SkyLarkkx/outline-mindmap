@@ -31,6 +31,8 @@ interface Slot {
   dropInto: boolean
   /** 上一次写的层级 class（1–6）。0 = 还没写过。 */
   level: number
+  /** 有序列表的边框类型：dot = `1.`，paren = `1)`；none = 无序或标题。 */
+  orderedKind: 'none' | 'dot' | 'paren'
 }
 
 export class NodeRenderer {
@@ -176,6 +178,7 @@ export class NodeRenderer {
       dragging: false,
       dropInto: false,
       level: 0,
+      orderedKind: 'none',
     }
   }
 
@@ -312,6 +315,15 @@ export class NodeRenderer {
       slot.el.removeClass(`om-l${slot.level}`)
       slot.el.addClass(`om-l${level}`)
       slot.level = level
+    }
+    const orderedKind: 'none' | 'dot' | 'paren' = node.list?.ordered
+      ? node.list.marker.endsWith(')') ? 'paren' : 'dot'
+      : 'none'
+    if (slot.orderedKind !== orderedKind) {
+      slot.el.classList.toggle('om-list-ordered', orderedKind !== 'none')
+      slot.el.classList.toggle('om-list-ordered-dot', orderedKind === 'dot')
+      slot.el.classList.toggle('om-list-ordered-paren', orderedKind === 'paren')
+      slot.orderedKind = orderedKind
     }
     if (slot.selected !== selected) {
       slot.el.classList.toggle('is-selected', selected)

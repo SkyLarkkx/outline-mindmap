@@ -4,14 +4,14 @@
  * 【禁止】import 任何 obsidian API。
  */
 
-import { DEFAULT_OPTIONS, type MindNode, type MindTree, type NodeKind, type ParseOptions } from './types'
+import { DEFAULT_OPTIONS, type ListInfo, type MindNode, type MindTree, type NodeKind, type ParseOptions } from './types'
 
 // ── A.2 行分类正则 ──────────────────────────────────────────────
 
 /** ATX 标题。注意：行首不允许有空白，`#标题`（无空格）不是标题。 */
 const HEADING_RE = /^(#{1,6})[ \t]+(.*)$/
-/** 无序列表项。捕获：前导空白 / 标记 / 标记后空白 / 内容。 */
-const LIST_RE = /^([ \t]*)([-*+])([ \t]+)(.*)$/
+/** 列表项：无序 `-*+`，或有序 `1.` / `1)`（最多 9 位数字）。 */
+const LIST_RE = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(.*)$/
 /** 代码围栏。3 个及以上的 ` 或 ~。 */
 const FENCE_RE = /^([ \t]*)(`{3,}|~{3,})(.*)$/
 
@@ -81,6 +81,7 @@ interface RawNode {
   depth: number
   kind: NodeKind
   text: string
+  list?: ListInfo
 }
 
 /** 定位 frontmatter 的结束行（exclusive）。不是 frontmatter 则返回 0。 */
@@ -155,7 +156,7 @@ function scan(lines: string[], listNodes: boolean): RawNode[] {
     // ── 空行不终止列表节点模式（A.4）──
     if (isBlank(line)) continue
 
-    // ── 优先级 3：列表项 ──
+    // ── 优先级 3：列表项（无序 / 有序）──
     const l = listNodes ? LIST_RE.exec(line) : null
     if (l) {
       if (listMode === 'ended') continue // 模式已终止，此后列表一律是正文
@@ -165,13 +166,18 @@ function scan(lines: string[], listNodes: boolean): RawNode[] {
         listBaseWidth = w
       }
       const level = Math.max(0, Math.floor((w - listBaseWidth) / INDENT_UNIT))
+      const bullet = l[2]
+      const number = l[3]
+      const delimiter = l[4]
+      const marker = bullet ?? `${number ?? ''}${delimiter ?? ''}`
       nodes.push({
         line: i,
         depth: (headingDepth ?? 0) + 1 + level,
         kind: 'list',
-        text: (l[4] ?? '').trim(),
+        text: (l[6] ?? '').trim(),
+        list: { ordered: bullet === undefined, marker },
       })
-      listContentCol = w + (l[2] ?? '').length + indentWidth(l[3] ?? '')
+      listContentCol = w + marker.length + indentWidth(l[5] ?? '')
       continue
     }
 
@@ -195,12 +201,14 @@ function makeNode(
   depth: number,
   kind: NodeKind,
   titleLine: number,
+  list?: ListInfo,
 ): MindNode {
   return {
     id,
     text,
     depth,
     kind,
+    ...(list ? { list } : {}),
     children: [],
     parent: null,
     titleLine,
@@ -246,7 +254,7 @@ export function parse(text: string, options: ParseOptions = DEFAULT_OPTIONS): Mi
   for (const r of raw) {
     closeTo(r.depth, r.line)
     const parent = stack[stack.length - 1] as MindNode
-    const node = makeNode(nextId(), r.text, r.depth, r.kind, r.line)
+    const node = makeNode(nextId(), r.text, r.depth, r.kind, r.line, r.list)
     node.parent = parent
     parent.children.push(node)
     byId.set(node.id, node)

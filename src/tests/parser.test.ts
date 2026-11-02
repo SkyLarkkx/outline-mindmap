@@ -242,7 +242,7 @@ describe('A.6 序列化', () => {
     expect(serializeNode('甲', 3, 'heading', 1)).toBe('### 甲')
   })
 
-  it('列表：Tab 重复 (depth - listBaseDepth) 次，标记一律 -', () => {
+  it('列表：未提供原始 marker 时缺省为 -', () => {
     expect(serializeNode('甲', 7, 'list', 7)).toBe('- 甲')
     expect(serializeNode('甲', 9, 'list', 7)).toBe('\t\t- 甲')
   })

@@ -10,7 +10,7 @@
  * 【禁止】import 任何 obsidian API。
  */
 
-import type { EditPlan, MindNode, MindTree, NodeKind, ParseOptions, TextEdit } from './types'
+import type { EditPlan, ListInfo, MindNode, MindTree, NodeKind, ParseOptions, TextEdit } from './types'
 import { isBlank, isHeadingLine, listBaseDepthOf } from './parser'
 import { serializeNode, serializeSubtree } from './serializer'
 
@@ -171,7 +171,7 @@ export function renameNode(tree: MindTree, id: string, newText: string): EditPla
     {
       fromLine: node.titleLine,
       toLine: node.titleLine + 1,
-      lines: [serializeNode(newText, node.depth, node.kind, listBaseDepthOf(node))],
+      lines: [serializeNode(newText, node.depth, node.kind, listBaseDepthOf(node), node.list)],
     },
   ]
 }
@@ -196,7 +196,14 @@ export function insertSibling(
   if (position !== 'after') throw new Error(`不支持的插入位置：${position as string}`)
   const ref = mustGet(tree, refId)
   const kind = forcedKind(ref.depth, ref.parent, ref.kind)
-  const line = serializeNode(text, ref.depth, kind, listBaseDepthOf(ref))
+  // 有序项的新兄弟继承参考项的 delimiter，但仍使用懒编号 1. / 1)。
+  const refList = ref.list
+  const list: ListInfo | undefined = kind === 'list'
+    ? refList?.ordered
+      ? { ordered: true, marker: refList.marker.endsWith(')') ? '1)' : '1.' }
+      : { ordered: false, marker: refList?.marker ?? '-' }
+    : undefined
+  const line = serializeNode(text, ref.depth, kind, listBaseDepthOf(ref), list)
   const insertAt = ref.blockEnd
   return [
     {
@@ -227,7 +234,9 @@ export function insertChild(
   assertWithinHeadings(depth, 0, options.listNodes)
   const lastChild = parent.children[parent.children.length - 1]
   const kind = forcedKind(depth, parent, lastChild ? lastChild.kind : 'heading')
-  const line = serializeNode(text, depth, kind, baseDepthUnder(parent))
+  // 用户选择：有序项下新建子项固定使用无序语法 `-`。
+  const list: ListInfo | undefined = kind === 'list' ? { ordered: false, marker: '-' } : undefined
+  const line = serializeNode(text, depth, kind, baseDepthUnder(parent), list)
 
   const insertAt = lastChild
     ? lastChild.blockEnd

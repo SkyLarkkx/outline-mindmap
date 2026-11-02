@@ -4,20 +4,21 @@
  * 【禁止】import 任何 obsidian API。
  */
 
-import type { MindNode, MindTree, NodeKind, ParseOptions } from './types'
+import type { ListInfo, MindNode, MindTree, NodeKind, ParseOptions } from './types'
 import { listBaseDepthOf } from './parser'
 
-/** 附录 A.6 序列化公式。 */
+/** 附录 A.6 序列化公式。列表节点优先复用原始 marker，缺省才退回 `-`。 */
 export function serializeNode(
   text: string,
   depth: number,
   kind: NodeKind,
   listBaseDepth: number,
+  list?: ListInfo,
 ): string {
   if (kind === 'heading') {
     return '#'.repeat(Math.min(6, Math.max(1, depth))) + ' ' + text
   }
-  return '\t'.repeat(Math.max(0, depth - listBaseDepth)) + '- ' + text
+  return '\t'.repeat(Math.max(0, depth - listBaseDepth)) + (list?.marker ?? '-') + ' ' + text
 }
 
 /** 装配阶段的中间表示：一个节点行 + 紧随其后的自身正文行。 */
@@ -81,7 +82,7 @@ function collectUnits(
   rootKindChanged: boolean,
 ): void {
   units.push({
-    line: serializeNode(node.text, depth, kind, listBaseDepth),
+    line: serializeNode(node.text, depth, kind, listBaseDepth, node.list),
     kind,
     body: bodyOf(lines, node),
   })

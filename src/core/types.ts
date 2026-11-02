@@ -6,6 +6,16 @@
 
 export type NodeKind = 'heading' | 'list'
 
+/**
+ * 列表节点的原始标记。有序列表只作为普通列表节点显示，不维护可见序号；
+ * marker 用于在重命名 / 移动时原样写回，避免把 `1.` 改成 `-`。
+ */
+export interface ListInfo {
+  ordered: boolean
+  /** 原始标记，例如 `-`、`*`、`1.`、`2)`。 */
+  marker: string
+}
+
 export interface MindNode {
   /** 稳定 ID，形如 'n1'。parse 内单调递增；跨次解析的稳定性由 reconcile 维护（M2）。 */
   id: string
@@ -14,6 +24,8 @@ export interface MindNode {
   /** 1-based。虚拟 root 为 0。 */
   depth: number
   kind: NodeKind
+  /** 列表节点的原始标记；标题节点没有。 */
+  list?: ListInfo
   children: MindNode[]
   /** 虚拟 root 的 parent 为 null。 */
   parent: MindNode | null

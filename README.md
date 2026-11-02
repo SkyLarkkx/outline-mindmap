@@ -65,7 +65,7 @@ In map-only mode, a node click selects it without opening a note. To read prose 
 | In the note | Level in the map |
 | --- | --- |
 | `# Heading` … `###### Heading` | Levels 1–6 |
-| `- list item` (one level = 4 spaces or one tab of indent) | Level 7 and deeper (can be turned off — see *Show list items as nodes*) |
+| `- list item` / `1. list item` (one level = 4 spaces or one tab of indent) | Level 7 and deeper (can be turned off — see *Show list items as nodes*) |
 | Body paragraphs under a heading | Not shown, but **move together with their heading** |
 | A `#` inside a fenced code block | Not a heading, never appears in the map |
 
@@ -154,6 +154,13 @@ no style of its own uses the global one. While the style window is open, draggin
 previews live, and *Cancel* restores. Per-note styles are keyed by file path and are migrated or
 cleaned up automatically when you rename, move or delete a note.
 
+Ordered list items are shown as ordinary list nodes without a number. With **colour by level** enabled,
+their text keeps the level colour while their border and background use a separate list-type accent;
+`1.` uses a solid border and lighter background, while `1)` uses a dashed border and a slightly stronger
+background. The original ordered marker (`1.`, `2)`, …) is preserved when renaming or moving a node;
+a new ordered sibling inherits the reference delimiter and is written as `1.` or `1)`,
+a new child under an ordered item is written as `-`, and source numbers are not automatically renumbered.
+
 ## Performance
 
 Pan and zoom update a single container transform; edges share one path and node events are delegated. Animation is disabled above 250 visible nodes or when reduced motion is requested.
@@ -164,8 +171,8 @@ The repository includes a [1000-node stress note](bench/1000节点压力测试�
 
 - Text-only maps: no summaries, no free-form connections, no images, no notes.
 - Collapsed state is not persisted; switching notes resets it.
-- Task list items `- [ ]` are treated as plain text; ordered lists are read fine but written
-  back as `-`.
+- Task list items `- [ ]` are treated as plain text; ordered list items are ordinary list nodes without
+  a visible number, and source numbers are not automatically renumbered.
 - Multi-select (`Ctrl/⌘ + click`) is for batch deletion only, not batch drag.
 
 ## Development
