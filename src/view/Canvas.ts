@@ -195,6 +195,10 @@ export class Canvas {
     return this.width > 0 && this.height > 0
   }
 
+  currentScale(): number {
+    return this.scale
+  }
+
   /**
    * 当前视口对应的内容坐标矩形。`buffer` 是额外的屏幕像素边距，
    * 用来预加载即将滚入视野的节点，减少快速平移时的空白。

@@ -10,7 +10,10 @@ import type { MindNode } from '../core/types'
 import { sideOf, type NodeSide } from '../layout'
 import type { Box, LayoutResult } from '../layout/types'
 import { parseInline, tagsFor } from './inline'
-import { hasRichLabel, renderRichLabel } from './richLabel'
+import { hasRichLabel, plainTextOf, renderRichLabel } from './richLabel'
+import type { DetailLevel } from './lod'
+
+export type NodeTextMode = 'rich' | 'plain' | 'none'
 
 interface Slot {
   el: HTMLElement
@@ -19,6 +22,9 @@ interface Slot {
   /** 上一次写进去的值，用来跳过没必要的 DOM 写入。null = 还没写过。 */
   text: string | null
   searchKey: string
+  /** 上一次的文字渲染档位：rich = 富 HTML/MathJax，plain = 纯文本，none = 空盒子。 */
+  mode: NodeTextMode
+  light: boolean
   transform: string
   w: number
   h: number
@@ -33,6 +39,13 @@ interface Slot {
   level: number
   /** 有序列表的边框类型：dot = `1.`，paren = `1)`；none = 无序或标题。 */
   orderedKind: 'none' | 'dot' | 'paren'
+}
+
+/** 远景只保留 H1–H3 的文字；H4–H6 和全部列表项使用无文字盒子。 */
+function textModeFor(node: MindNode, level: DetailLevel): NodeTextMode {
+  if (level === 'detail') return 'rich'
+  if (level === 'mid') return 'plain'
+  return node.kind === 'heading' && node.depth <= 3 ? 'plain' : 'none'
 }
 
 export class NodeRenderer {
@@ -71,6 +84,7 @@ export class NodeRenderer {
     boxes: LayoutResult,
     selected: ReadonlySet<string>,
     rootSide: NodeSide = 'right',
+    detail: DetailLevel = 'detail',
   ): void {
     const keep = new Set<string>()
     let needsMathFinish = false
@@ -81,7 +95,7 @@ export class NodeRenderer {
       keep.add(node.id)
       const slot = this.active.get(node.id) ?? this.acquire(node.id)
       const parentBox = node.parent ? boxes.get(node.parent.id) : undefined
-      if (this.update(slot, node, box, selected.has(node.id), sideOf(box, parentBox, rootSide))) {
+      if (this.update(slot, node, box, selected.has(node.id), sideOf(box, parentBox, rootSide), textModeFor(node, detail))) {
         needsMathFinish = true
       }
     }
@@ -166,6 +180,8 @@ export class NodeRenderer {
       toggleEl,
       text: null, // 还没写过任何文字，保证首次一定写入
       searchKey: '',
+      mode: 'rich',
+      light: false,
       transform: '',
       w: -1,
       h: -1,
@@ -255,6 +271,16 @@ export class NodeRenderer {
     return renderedMath
   }
 
+  /**
+   * 中间 / 远景档位的纯文本：保留可读文字，但不创建富 HTML、链接、公式和搜索高亮结构。
+   * 体积明显小于完整渲染，适合大量节点同时出现时使用。
+   */
+  private static renderPlainTextInto(host: HTMLElement, text: string): void {
+    host.empty()
+    const visible = parseInline(text).map(segment => segment.text).join('')
+    host.appendText(plainTextOf(visible))
+  }
+
   private applyDragging(id: string, on: boolean): void {
     const slot = this.active.get(id)
     if (!slot || slot.dragging === on) return
@@ -275,15 +301,25 @@ export class NodeRenderer {
     box: Box,
     selected: boolean,
     side: NodeSide,
+    mode: NodeTextMode,
   ): boolean {
     let renderedMath = false
     const terms = this.search.get(node.id)
     const searchKey = terms ? JSON.stringify(terms) : ''
     slot.el.toggleClass('is-search-match', terms !== undefined)
-    if (slot.text !== node.text || slot.searchKey !== searchKey) {
-      renderedMath = NodeRenderer.renderTextInto(slot.textEl, node.text, terms)
+    if (slot.text !== node.text || slot.searchKey !== searchKey || slot.mode !== mode) {
+      if (mode === 'none') slot.textEl.empty()
+      else if (mode === 'plain') NodeRenderer.renderPlainTextInto(slot.textEl, node.text)
+      else renderedMath = NodeRenderer.renderTextInto(slot.textEl, node.text, terms)
       slot.text = node.text
       slot.searchKey = searchKey
+      slot.mode = mode
+    }
+
+    const light = mode === 'none'
+    if (slot.light !== light) {
+      slot.el.classList.toggle('is-light', light)
+      slot.light = light
     }
 
     const transform = `translate(${box.x}px, ${box.y}px)`
@@ -295,7 +331,8 @@ export class NodeRenderer {
       slot.h = box.h
     }
 
-    const hasToggle = node.children.length > 0
+    // 远景的空盒子不显示折叠按钮；H1–H3 的纯文字节点仍保留折叠入口。
+    const hasToggle = node.children.length > 0 && mode !== 'none'
     if (slot.hasToggle !== hasToggle) {
       slot.toggleEl.toggleClass('is-hidden', !hasToggle)
       slot.hasToggle = hasToggle

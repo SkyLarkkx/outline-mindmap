@@ -147,7 +147,7 @@ const zh = {
   'settings.performanceMode': '大图性能模式',
   'settings.performanceModeDesc':
     '自动：移动端总节点超过 500 时启用，桌面端保持原样；' +
-    '开启：始终只渲染视口附近的节点并使用可读局部首屏；关闭：始终完整渲染。',
+    '开启：始终只渲染视口附近的节点、使用可读局部首屏并按缩放简化远景；关闭：始终完整渲染。',
   'settings.performanceModeAuto': '自动（移动端 > 500 节点）',
   'settings.performanceModeOn': '始终开启',
   'settings.performanceModeOff': '关闭',
@@ -298,7 +298,7 @@ const en: Record<MsgKey, string> = {
   'settings.performanceMode': 'Large-map performance mode',
   'settings.performanceModeDesc':
     'Auto: enabled on mobile when the map has more than 500 nodes; desktop keeps the normal renderer. ' +
-    'On: always render only nodes near the viewport and start with a readable local view. Off: always render the whole map.',
+    'On: only render nodes near the viewport, start with a readable local view and simplify far zoom levels. Off: always render the whole map.',
   'settings.performanceModeAuto': 'Auto (mobile > 500 nodes)',
   'settings.performanceModeOn': 'Always on',
   'settings.performanceModeOff': 'Off',

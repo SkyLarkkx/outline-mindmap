@@ -282,6 +282,19 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * 远景 LOD：H4–H6 和列表项只保留空盒子，不创建文字、公式或折叠按钮。
+ * 盒子尺寸仍来自完整布局，因此缩放时不会因为文字消失而跳动。
+ */
+.om-node.is-light {
+  opacity: 0.78;
+}
+
+.om-node.is-light .om-node-text,
+.om-node.is-light .om-toggle {
+  display: none;
+}
+
 .om-node-text mark {
   /*
    * Current Obsidian themes define --highlight-background (with the yellow

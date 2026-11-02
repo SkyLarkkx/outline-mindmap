@@ -95,4 +95,29 @@ describe('NodeRenderer math integration', () => {
     expect(finishRenderMath).not.toHaveBeenCalled()
     expect(textOf(findByClass(layer, 'om-node-text')[0] as FakeElement)).toBe(String.raw`坏公式：$\bad$`)
   })
+
+  it('renders mid as plain text and far as H1–H3 text plus lightweight boxes', () => {
+    const layer = new FakeElement('div')
+    const renderer = new NodeRenderer(layer as unknown as HTMLElement)
+    const h1 = { ...node('**概况** $x$'), id: 'h1', depth: 1 }
+    const h4 = { ...node('**深层** $y$'), id: 'h4', depth: 4 }
+    const list = { ...node('**列表项**'), id: 'l1', depth: 7, kind: 'list' as const }
+    const allBoxes: LayoutResult = new Map([
+      ['h1', { x: 0, y: 0, w: 100, h: 30 }],
+      ['h4', { x: 200, y: 0, w: 100, h: 30 }],
+      ['l1', { x: 400, y: 0, w: 100, h: 30 }],
+    ])
+
+    renderer.render([h1, h4, list], allBoxes, new Set(), 'right', 'mid')
+    expect(findByClass(layer, 'om-node-text').map(textOf)).toEqual(['概况 x', '深层 y', '列表项'])
+    expect(findByClass(layer, 'is-light')).toHaveLength(0)
+    expect(renderMath).not.toHaveBeenCalled()
+    expect(finishRenderMath).not.toHaveBeenCalled()
+
+    renderer.render([h1, h4, list], allBoxes, new Set(), 'right', 'far')
+    expect(findByClass(layer, 'om-node-text').map(textOf)).toEqual(['概况 x', '', ''])
+    expect(findByClass(layer, 'is-light')).toHaveLength(2)
+    expect(renderMath).not.toHaveBeenCalled()
+    expect(finishRenderMath).not.toHaveBeenCalled()
+  })
 })

@@ -78,6 +78,7 @@ import { searchState, searchTargets, type SearchState } from './search'
 import { clearMeasureCache, readFont, toggleSize, type FontSpec } from './measure'
 import { clearRichMeasureCache, isRichNode, measureNodeForLayout, measureRichNodes } from './richMeasure'
 import { nodesInViewport } from './visibility'
+import { nextDetailLevel, type DetailLevel } from './lod'
 
 export const VIEW_TYPE_MINDMAP = 'outline-mindmap'
 
@@ -145,6 +146,12 @@ export class MindmapView extends ItemView {
   private renderBoxes: LayoutResult = new Map()
   /** 性能模式下，平移/缩放后合并到下一帧再更新可见节点。 */
   private visibleRenderFrame: number | null = null
+  /** 当前 LOD 档位；只在性能模式下离开 detail。 */
+  private detailLevel: DetailLevel = 'detail'
+  /** 上一次性能模式渲染的帧、档位和可见节点；纯平移且集合未变时跳过 DOM/连线重算。 */
+  private lastRenderFrame: LayoutResult | null = null
+  private lastRenderDetail: DetailLevel = 'detail'
+  private lastVisibleNodes: MindNode[] = []
   private bounds: Box = { x: 0, y: 0, w: 0, h: 0 }
   /** 布局方向：与其他样式一样由单篇 / 全局配置解析。 */
   private direction: LayoutDirection = DEFAULT_LAYOUT.direction
@@ -1086,6 +1093,9 @@ export class MindmapView extends ItemView {
       this.renderBoxes = new Map()
       this.order = []
       this.bounds = { x: 0, y: 0, w: 0, h: 0 }
+      this.detailLevel = 'detail'
+      this.lastRenderFrame = null
+      this.lastVisibleNodes = []
       this.contentEl.removeClass('om-performance')
       return
     }
@@ -1108,7 +1118,10 @@ export class MindmapView extends ItemView {
     const animateLayout = animated && !this.needsFit && !this.session && !this.drag.active
     // 性能模式必须先确定首屏视野，再决定哪些节点进 DOM；否则会先创建整棵大图的 DOM。
     if (performance && this.needsFit) this.initializeViewport()
-    this.motion.update(boxes, animateLayout, frame => this.renderScene(nodes, frame, performance))
+    this.detailLevel = performance
+      ? nextDetailLevel(this.detailLevel, this.canvas.currentScale())
+      : 'detail'
+    this.motion.update(boxes, animateLayout, frame => this.renderScene(nodes, frame, performance, this.detailLevel))
     if (!performance) this.initializeViewport()
   }
 
@@ -1116,24 +1129,38 @@ export class MindmapView extends ItemView {
    * 把一帧布局写进 DOM。普通模式渲染全部可见节点；性能模式只渲染视口附近的节点，
    * 连线层只为实际渲染的子节点生成入边。
    */
-  private renderScene(nodes: MindNode[], frame: LayoutResult, performance: boolean): void {
+  private renderScene(
+    nodes: MindNode[],
+    frame: LayoutResult,
+    performance: boolean,
+    detail: DetailLevel,
+  ): void {
     this.renderBoxes = frame
     const root = rootSide(this.direction)
     const bounds = boundsOf(frame)
     if (!performance) {
-      this.nodeRenderer.render(nodes, frame, this.selection, root)
+      this.lastRenderFrame = null
+      this.lastVisibleNodes = []
+      this.nodeRenderer.render(nodes, frame, this.selection, root, 'detail')
       this.connectors.render(nodes, frame, this.style.branch, bounds.x + bounds.w, bounds.y + bounds.h)
       return
     }
 
     const viewport = this.canvas.viewportContentRect(PERFORMANCE_CULL_BUFFER_PX)
     if (!viewport) {
-      this.nodeRenderer.render([], new Map(), this.selection, root)
+      this.lastRenderFrame = null
+      this.lastVisibleNodes = []
+      this.nodeRenderer.render([], new Map(), this.selection, root, detail)
       this.connectors.render([], new Map(), this.style.branch, 1, 1)
       return
     }
     const visible = nodesInViewport(nodes, frame, viewport)
-    this.nodeRenderer.render(visible.nodes, frame, this.selection, root)
+    if (frame === this.lastRenderFrame && detail === this.lastRenderDetail &&
+        sameNodeList(visible.nodes, this.lastVisibleNodes)) return
+    this.lastRenderFrame = frame
+    this.lastRenderDetail = detail
+    this.lastVisibleNodes = visible.nodes
+    this.nodeRenderer.render(visible.nodes, frame, this.selection, root, detail)
     this.connectors.render(
       nodes,
       frame,
@@ -1161,7 +1188,8 @@ export class MindmapView extends ItemView {
     this.visibleRenderFrame = win.requestAnimationFrame(() => {
       this.visibleRenderFrame = null
       if (!this.ready || !this.tree || !this.isPerformanceMode() || this.renderBoxes.size === 0) return
-      this.renderScene(visibleNodes(this.tree), this.renderBoxes, true)
+      this.detailLevel = nextDetailLevel(this.detailLevel, this.canvas.currentScale())
+      this.renderScene(visibleNodes(this.tree), this.renderBoxes, true, this.detailLevel)
     })
   }
 
@@ -2222,4 +2250,10 @@ function makeDraft(parent: MindNode, index: number): MindNode {
   }
   parent.children.splice(index, 0, draft)
   return draft
+}
+
+function sameNodeList(a: readonly MindNode[], b: readonly MindNode[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
 }
