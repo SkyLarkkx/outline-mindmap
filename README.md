@@ -5,7 +5,7 @@
 > **This is a personal fork** of [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap),
 > based on upstream **v1.3.4**. It adds node-body previews, safe inline HTML in node labels, ordered-list
 > nodes and some robustness fixes while keeping the same note format and plugin id.
-> Current fork release: **1.4.0**.
+> Current fork release: **1.4.1**.
 > Fork: [SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
 
 Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers. This fork additionally lets you **preview a node’s body in place**, render **a safe subset of inline HTML** in node labels, and use **ordered lists as ordinary list nodes**.
@@ -16,7 +16,7 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 
 ![Outline Mindmap demo](demo1.png)
 
-- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.4.0 (upstream base v1.3.4)**
+- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.4.1 (upstream base v1.3.4)**
 - The interface follows Obsidian's language: 中文 / English, no setting to touch.
 
 ## Features
@@ -263,11 +263,15 @@ If the vault already has this plugin under a differently-named folder, it reuses
 rather than creating a second copy with the same plugin id.
 
 Before publishing a fork build, run `npm test` and `npm run build`. Keep `manifest.json`,
-`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.4.0`;
+`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.4.1`;
 the upstream base remains `1.3.4`. If you publish release assets, attach `main.js`, `manifest.json`
 and `styles.css`. **The tag carries no `v` prefix** — Obsidian looks releases up by the bare version number.
 
 ## What's new
+
+### Fork v1.4.1
+
+- **Mobile toolbar icon fix**: re-apply toolbar SVG icons after the custom view is mounted, and add direct `svg` sizing fallbacks for mobile Obsidian.
 
 ### Fork v1.4.0 (based on upstream v1.3.4)
 

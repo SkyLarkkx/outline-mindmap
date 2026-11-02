@@ -49,6 +49,9 @@ export class Toolbar {
   readonly el: HTMLElement
   private lock!: HTMLButtonElement
   private preview!: HTMLButtonElement
+  private lockIcon: 'lock' | 'lock-open' = 'lock-open'
+  private readonly buttons = new Map<HTMLButtonElement, ButtonSpec>()
+  private refreshTimer: number | null = null
 
   constructor(
     host: HTMLElement,
@@ -59,9 +62,18 @@ export class Toolbar {
 
     this.el.addEventListener('pointerdown', this.onPointerDown)
     this.el.addEventListener('click', this.onClick)
+    // Mobile Obsidian can construct a custom view before its contentEl is
+    // attached. setIcon() then runs too early and the buttons arrive without
+    // SVGs. Re-apply once the toolbar is actually connected.
+    this.scheduleIconRefresh()
   }
 
   destroy(): void {
+    if (this.refreshTimer !== null) {
+      const win = this.el.ownerDocument?.defaultView
+      win?.clearTimeout(this.refreshTimer)
+      this.refreshTimer = null
+    }
     this.el.removeEventListener('pointerdown', this.onPointerDown)
     this.el.removeEventListener('click', this.onClick)
     this.el.remove()
@@ -75,12 +87,44 @@ export class Toolbar {
     btn.dataset['action'] = spec.action
     // Obsidian 用 aria-label 显示气泡提示，顺便也是无障碍名字
     btn.setAttribute('aria-label', t(spec.label))
-    setIcon(btn, spec.icon)
+    this.buttons.set(btn, spec)
+    this.applyIcon(btn, spec.icon)
     return btn
   }
 
+  /** Re-apply all icons after the toolbar/view has been mounted. */
+  refreshIcons(): void {
+    for (const [btn, spec] of this.buttons) {
+      this.applyIcon(btn, spec.action === 'lock' ? this.lockIcon : spec.icon)
+    }
+  }
+
+  private applyIcon(btn: HTMLButtonElement, icon: string): void {
+    // setIcon may append another SVG on some mobile builds; start clean.
+    btn.empty()
+    setIcon(btn, icon)
+  }
+
+  private scheduleIconRefresh(attempt = 0): void {
+    const win = this.el.ownerDocument?.defaultView
+    // Vitest/fake DOM has no window; applying synchronously is harmless there.
+    if (!win) {
+      this.refreshIcons()
+      return
+    }
+    this.refreshTimer = win.setTimeout(() => {
+      this.refreshTimer = null
+      if (!this.el.isConnected && attempt < 20) {
+        this.scheduleIconRefresh(attempt + 1)
+        return
+      }
+      this.refreshIcons()
+    }, attempt === 0 ? 0 : 50)
+  }
+
   setLocked(locked: boolean, forced: boolean, available: boolean): void {
-    setIcon(this.lock, locked ? 'lock' : 'lock-open')
+    this.lockIcon = locked ? 'lock' : 'lock-open'
+    this.applyIcon(this.lock, this.lockIcon)
     this.lock.disabled = forced || !available
     this.lock.toggleClass('is-active', locked)
     this.lock.setAttribute('aria-pressed', String(locked))

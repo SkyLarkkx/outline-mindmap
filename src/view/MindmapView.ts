@@ -632,6 +632,9 @@ export class MindmapView extends ItemView {
     this.pendingPath = null
     const shown = pending !== null && (await this.showRestored(pending))
     if (!shown) await this.syncActiveFile(true, 'onOpen')
+    // Second chance after the async open path; mobile custom views may attach
+    // later than the Toolbar constructor.
+    this.toolbar.refreshIcons()
   }
 
   override async onClose(): Promise<void> {

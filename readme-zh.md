@@ -4,7 +4,7 @@
 
 > **这是个人 fork**：在 [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap)
 > **v1.3.4** 的基础上增加了节点正文预览、节点内联 HTML、有序列表节点和若干健壮性修复；
-> 笔记格式与插件 id 保持不变。当前 fork 版本：**1.4.0**。
+> 笔记格式与插件 id 保持不变。当前 fork 版本：**1.4.1**。
 > Fork 仓库：[SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
 
 把 Markdown 笔记的标题大纲变成思维导图，支持双向实时编辑、点击定位和样式自定义。笔记是唯一的数据源，设置保存在插件自己的 `data.json` 中，不添加 frontmatter、标签或隐藏标记。本 fork 额外支持**悬停/固定预览节点正文**、节点标题里的**安全内联 HTML**，以及把**有序列表作为普通列表节点**显示。
@@ -13,7 +13,7 @@
 
 演示素材录制于旧版本；1.3.4 的布局方向已移至「样式设置」。
 
-- 适用于 **Obsidian** 1.7.2 以上 · 桌面端与移动端 · **fork 版本 1.4.0（上游基础 v1.3.4）**
+- 适用于 **Obsidian** 1.7.2 以上 · 桌面端与移动端 · **fork 版本 1.4.1（上游基础 v1.3.4）**
 - 界面语言跟随 Obsidian：中文 / English 自动切换，无需任何设置
 
 ## 特色功能
@@ -235,11 +235,15 @@ npm run deploy                 # 之后：构建 + 装进记住的仓库
 不会另建一份 id 相同的出来。
 
 发布前运行 `npm test` 和 `npm run build`，统一 `manifest.json`、`package.json`、
-`package-lock.json` 与 `versions.json` 的版本。本 fork 的发布版本是 `1.4.0`，上游基础版本仍是 `1.3.4`。
+`package-lock.json` 与 `versions.json` 的版本。本 fork 的发布版本是 `1.4.1`，上游基础版本仍是 `1.3.4`。
 若要发布 Release 资产，将 `main.js`、`manifest.json`、`styles.css` 作为附件上传。
 **tag 不要带 `v` 前缀**——Obsidian 按纯版本号找 release。
 
 ## 更新说明
+
+### 本 fork v1.4.1
+
+- **移动端工具栏图标修复**：自定义视图挂载后重新应用工具栏 SVG 图标，并为移动端 Obsidian 补充直接 `svg` 尺寸兜底。
 
 ### 本 fork v1.4.0（基于上游 v1.3.4）
 

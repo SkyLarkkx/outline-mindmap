@@ -208,9 +208,12 @@
   color: var(--text-normal);
 }
 
-.om-tool .svg-icon {
+.om-tool .svg-icon,
+.om-tool > svg {
   width: 16px;
   height: 16px;
+  display: block;
+  flex: 0 0 auto;
 }
 
 /* 平移缩放只作用在这一层，节点自身的 transform 是布局坐标 */
@@ -702,9 +705,12 @@
   outline-offset: 1px;
 }
 
-.om-preview-action .svg-icon {
+.om-preview-action .svg-icon,
+.om-preview-action > svg {
   width: 15px;
   height: 15px;
+  display: block;
+  flex: 0 0 auto;
 }
 
 .om-preview.is-pinned .om-preview-pin {
