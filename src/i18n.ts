@@ -144,6 +144,13 @@ const zh = {
   'settings.listNodesDesc':
     '开启后，标题下的列表项作为更深层的导图节点（第 7 层起）。' +
     '关闭后列表只算正文，导图仅由标题构成。',
+  'settings.performanceMode': '大图性能模式',
+  'settings.performanceModeDesc':
+    '自动：移动端总节点超过 500 时启用，桌面端保持原样；' +
+    '开启：始终只渲染视口附近的节点并使用可读局部首屏；关闭：始终完整渲染。',
+  'settings.performanceModeAuto': '自动（移动端 > 500 节点）',
+  'settings.performanceModeOn': '始终开启',
+  'settings.performanceModeOff': '关闭',
   'settings.rememberOpenAs': '记住每篇笔记的打开方式',
   'settings.rememberOpenAsDesc':
     '用「打开为导图」转换过的笔记，下次打开时直接显示为导图；「打开为笔记」即恢复。' +
@@ -288,6 +295,13 @@ const en: Record<MsgKey, string> = {
   'settings.listNodesDesc':
     'When on, list items under headings become deeper mindmap nodes (level 7 and beyond). ' +
     'When off, lists count as body text and the map is built from headings only.',
+  'settings.performanceMode': 'Large-map performance mode',
+  'settings.performanceModeDesc':
+    'Auto: enabled on mobile when the map has more than 500 nodes; desktop keeps the normal renderer. ' +
+    'On: always render only nodes near the viewport and start with a readable local view. Off: always render the whole map.',
+  'settings.performanceModeAuto': 'Auto (mobile > 500 nodes)',
+  'settings.performanceModeOn': 'Always on',
+  'settings.performanceModeOff': 'Off',
   'settings.rememberOpenAs': 'Remember how each note opens',
   'settings.rememberOpenAsDesc':
     'A note converted with "Open as mindmap" opens as a mindmap next time; "Open as note" restores it. ' +

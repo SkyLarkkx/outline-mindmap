@@ -5,10 +5,16 @@ import { StyleStore } from '../src/settings/StyleStore'
 describe('new defaults without migrating user choices', () => {
   it('uses the five requested defaults only for new or missing values', () => {
     const settings = normalizeSettings(null)
-    expect(settings).toMatchObject({ gracefulAnimation: true, strictLineBreak: false, listNodes: false })
+    expect(settings).toMatchObject({
+      gracefulAnimation: true,
+      strictLineBreak: false,
+      listNodes: false,
+      performanceMode: 'auto',
+    })
     expect(settings.styles.defaults).toMatchObject({ branch: 'elbow', scheme: 'blue', colorByLevel: false })
-    const partial = normalizeSettings({ listNodes: true, styles: { defaults: { scheme: 'warm' } } })
+    const partial = normalizeSettings({ listNodes: true, performanceMode: 'on', styles: { defaults: { scheme: 'warm' } } })
     expect(partial.listNodes).toBe(true)
+    expect(partial.performanceMode).toBe('on')
     expect(partial.styles.defaults).toMatchObject({ branch: 'elbow', scheme: 'warm' })
   })
   it('preserves every explicit old setting and per-note style on upgrade', () => {

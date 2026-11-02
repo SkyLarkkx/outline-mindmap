@@ -11,6 +11,7 @@ import type { SearchState } from '../view/search'
 import { normalizeOpenAsData, type NoteMode, type OpenAsData } from './OpenAsStore'
 import { normalizeViewPreferences, type ViewPreferenceData, type ViewPreferences } from './ViewPreferences'
 import { defaultStyleData, normalizeStyleData, type StyleData, type StyleStore } from './StyleStore'
+import { normalizePerformanceMode, type PerformanceMode } from './PerformanceMode'
 
 export interface MindmapSettings {
   /** 单击节点是否跳转到笔记对应位置。关掉之后单击只选中。 */
@@ -25,6 +26,8 @@ export interface MindmapSettings {
   strictLineBreak: boolean
   /** 把列表项显示为导图节点。关掉后导图只画标题，列表行只是最近标题的正文。 */
   listNodes: boolean
+  /** 大图性能模式：自动（移动端超过阈值）/ 强制开启 / 关闭。 */
+  performanceMode: PerformanceMode
   /** 记住每篇笔记的打开方式：用「打开为导图」转换过的笔记，下次打开直接是导图（v1.3.2）。 */
   rememberOpenAs: boolean
   /** 全局样式 + 单篇样式。运行时由 StyleStore 就地读写这一份对象。 */
@@ -41,6 +44,7 @@ export const DEFAULT_SETTINGS: MindmapSettings = {
   gracefulAnimation: true,
   strictLineBreak: false,
   listNodes: false,
+  performanceMode: 'auto',
   rememberOpenAs: true,
   styles: defaultStyleData(),
   openAs: {},
@@ -59,6 +63,7 @@ export function normalizeSettings(raw: unknown): MindmapSettings {
     gracefulAnimation: bool('gracefulAnimation', DEFAULT_SETTINGS.gracefulAnimation),
     strictLineBreak: bool('strictLineBreak', DEFAULT_SETTINGS.strictLineBreak),
     listNodes: bool('listNodes', DEFAULT_SETTINGS.listNodes),
+    performanceMode: normalizePerformanceMode(o['performanceMode']),
     rememberOpenAs: bool('rememberOpenAs', DEFAULT_SETTINGS.rememberOpenAs),
     styles: normalizeStyleData(o['styles']),
     openAs: normalizeOpenAsData(o['openAs']),
@@ -106,7 +111,26 @@ export class MindmapSettingTab extends PluginSettingTab {
     this.toggle('settings.listNodes', 'settings.listNodesDesc', 'listNodes', () =>
       this.host.reloadMindmaps(),
     )
+    this.performanceModeSetting()
     this.toggle('settings.rememberOpenAs', 'settings.rememberOpenAsDesc', 'rememberOpenAs')
+  }
+
+  private performanceModeSetting(): void {
+    new Setting(this.containerEl)
+      .setName(t('settings.performanceMode'))
+      .setDesc(t('settings.performanceModeDesc'))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('auto', t('settings.performanceModeAuto'))
+          .addOption('on', t('settings.performanceModeOn'))
+          .addOption('off', t('settings.performanceModeOff'))
+          .setValue(this.host.settings.performanceMode)
+          .onChange(async (value) => {
+            this.host.settings.performanceMode = normalizePerformanceMode(value)
+            await this.host.saveSettings()
+            this.host.reloadMindmaps()
+          }),
+      )
   }
 
   /** 几个开关长得一模一样，写成一个方法免得同一段代码抄五遍。 */

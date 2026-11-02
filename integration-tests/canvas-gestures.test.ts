@@ -184,4 +184,17 @@ describe('touch and mouse interaction', () => {
     expect(s.viewport.captures.size).toBe(0)
     expect([...s.viewport.listeners.values()].flat()).toEqual([])
   })
+
+  it('reports the content rect around the viewport and supports a readable focused view', () => {
+    const changed = vi.fn()
+    const s = setup({ onViewportChange: changed })
+    expect(s.canvas.hasSize()).toBe(true)
+    expect(s.canvas.viewportContentRect()).toEqual({ x: 0, y: 0, w: 800, h: 600 })
+    expect(s.canvas.viewportContentRect(100)).toEqual({ x: -100, y: -100, w: 1000, h: 800 })
+
+    expect(s.canvas.focusOn({ x: 0, y: 0, w: 100, h: 20 }, 0.9, false, 0.3, 0.5)).toBe(true)
+    expect(s.canvas.snapshot()?.scale).toBe(0.9)
+    expect((s.canvas.content as any).styles.transform).toBe('translate(195px, 291px) scale(0.9)')
+    expect(changed).toHaveBeenCalled()
+  })
 })

@@ -77,3 +77,4 @@ export class Notice { constructor(public message: string) {} }
 export const moment = { locale: () => 'zh' }
 export const loadMathJax = async (): Promise<void> => {}
 export const setIcon = (): void => {}
+export const Platform = { isMobile: false, isDesktop: true, isMobileApp: false }

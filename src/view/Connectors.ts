@@ -26,16 +26,27 @@ export class Connectors {
    * @param style 直线 / 斜线（贝塞尔）/ 折线
    * @param width/height 内容右下角。向左的分支坐标为负、画在 svg 盒子外面，
    *   靠 `.om-svg { overflow: visible }` 照常显示；这两个值只用来撑出元素本身的大小
+   * @param visible 性能模式下实际渲染的节点 id。边以子节点为准：子节点在视口内
+   *   就画它的入边（父节点可以刚好在视口外），子节点不在视口内就不画，
+   *   避免父节点周围几百条出边全部生成路径。
    *
-   *   【但绝不能钳到 0】：SVG 规范规定 width/height 为 0 的元素【整个禁用渲染】，
+   *   【绝不能钳到 0】：SVG 规范规定 width/height 为 0 的元素【整个禁用渲染】，
    *   overflow 救不了它。分支向左时所有 x ≤ 0，右下角正好是 0——一钳成 0，
    *   整张图的连线会一条都不画（原 M9 的分支向左连线消失就是这个）。
    */
-  render(nodes: MindNode[], boxes: LayoutResult, style: BranchStyle, width: number, height: number): void {
+  render(
+    nodes: MindNode[],
+    boxes: LayoutResult,
+    style: BranchStyle,
+    width: number,
+    height: number,
+    visible?: ReadonlySet<string>,
+  ): void {
     let d = ''
     for (const node of nodes) {
       const parent = node.parent
       if (!parent) continue
+      if (visible && !visible.has(node.id)) continue
       const from = boxes.get(parent.id) // 虚拟 root 没有 Box，根节点因此没有入边
       const to = boxes.get(node.id)
       if (!from || !to) continue

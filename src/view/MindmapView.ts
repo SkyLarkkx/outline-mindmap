@@ -16,6 +16,7 @@ import {
   ItemView,
   MarkdownView,
   Notice,
+  Platform,
   loadMathJax,
   type Menu,
   type TFile,
@@ -53,6 +54,11 @@ import type { Box, LayoutDirection, LayoutOptions, LayoutResult } from '../layou
 import { DocumentBridge, type DocumentChange } from '../doc/DocumentBridge'
 import type { HistoryDirection } from '../doc/FileHistory'
 import type { MindmapHost } from '../settings/SettingsTab'
+import {
+  PERFORMANCE_CULL_BUFFER_PX,
+  PERFORMANCE_READABLE_SCALE,
+  shouldUsePerformanceMode,
+} from '../settings/PerformanceMode'
 import { StyleModal } from '../settings/StyleModal'
 import { DEFAULT_STYLE, type MindmapStyle } from '../settings/StyleStore'
 import type { NoteMode } from '../settings/OpenAsStore'
@@ -71,6 +77,7 @@ import { nodeBody } from './body'
 import { searchState, searchTargets, type SearchState } from './search'
 import { clearMeasureCache, readFont, toggleSize, type FontSpec } from './measure'
 import { clearRichMeasureCache, isRichNode, measureNodeForLayout, measureRichNodes } from './richMeasure'
+import { nodesInViewport } from './visibility'
 
 export const VIEW_TYPE_MINDMAP = 'outline-mindmap'
 
@@ -134,6 +141,10 @@ export class MindmapView extends ItemView {
   private tree: MindTree | null = null
   private font: FontSpec | null = null
   private boxes: LayoutResult = new Map()
+  /** 上一次真正写进 DOM 的坐标；视口变化时据此重新裁剪，不必重算布局。 */
+  private renderBoxes: LayoutResult = new Map()
+  /** 性能模式下，平移/缩放后合并到下一帧再更新可见节点。 */
+  private visibleRenderFrame: number | null = null
   private bounds: Box = { x: 0, y: 0, w: 0, h: 0 }
   /** 布局方向：与其他样式一样由单篇 / 全局配置解析。 */
   private direction: LayoutDirection = DEFAULT_LAYOUT.direction
@@ -307,16 +318,37 @@ export class MindmapView extends ItemView {
   private resizeCanvas(): void {
     this.initializeViewport()
     this.focusSearch()
+    this.scheduleVisibleRender()
   }
 
   private initializeViewport(): void {
     if (!this.needsFit) return
-    const restored = this.initialViewport
-      ? this.canvas.restore(this.initialViewport, this.boxes.values()) : this.canvas.fit(this.bounds)
+    const performance = this.isPerformanceMode()
+    // 旧版本在 iPad 上可能已经保存了一个「整图适应」的极远视野。性能模式首屏
+    // 不能被它拖回全景：保留保存的中心点，但把比例抬到可读范围。
+    const saved = this.initialViewport && performance &&
+      this.initialViewport.scale < PERFORMANCE_READABLE_SCALE
+      ? { ...this.initialViewport, scale: PERFORMANCE_READABLE_SCALE }
+      : this.initialViewport
+    const restored = saved
+      ? this.canvas.restore(saved, this.boxes.values())
+      : performance ? this.focusReadableHome() : this.canvas.fit(this.bounds)
     if (restored) {
       this.needsFit = false
       this.initialViewport = undefined
     }
+  }
+
+  /**
+   * 大图首屏：不把整张图硬塞进屏幕，而是聚焦第一个根分支。
+   * 右侧生长的分支把根放在屏幕左侧 30% 处，左侧生长反过来，两侧布局居中。
+   */
+  private focusReadableHome(): boolean {
+    const home = this.tree?.root.children[0]
+    const box = home ? this.boxes.get(home.id) : undefined
+    if (!box) return this.canvas.fit(this.bounds)
+    const anchorX = this.direction === 'right' ? 0.3 : this.direction === 'left' ? 0.7 : 0.5
+    return this.canvas.focusOn(box, PERFORMANCE_READABLE_SCALE, false, anchorX, 0.5)
   }
 
   private rememberViewport(): void {
@@ -524,6 +556,7 @@ export class MindmapView extends ItemView {
         this.hideHoverPreview()
         this.cancelTouchPreview()
       },
+      onViewportChange: () => this.scheduleVisibleRender(),
       panNodes: () => { this.syncLock(); return this.locked },
     })
     this.empty = host.createDiv({ cls: 'om-empty', text: t('view.empty') })
@@ -675,6 +708,7 @@ export class MindmapView extends ItemView {
     this.modeObserver?.disconnect()
     this.modeObserver = null
     this.modeContainers = []
+    this.cancelVisibleRender()
     this.unsubscribePreferences?.()
     this.unsubscribePreferences = null
     this.host.preferences.flush()
@@ -1039,6 +1073,7 @@ export class MindmapView extends ItemView {
   // ── 渲染 ────────────────────────────────────────────────────
 
   private draw(): void {
+    this.cancelVisibleRender()
     const tree = this.tree
     const hasContent = tree !== null && tree.root.children.length > 0
     this.empty.toggleClass('is-visible', !hasContent)
@@ -1048,8 +1083,10 @@ export class MindmapView extends ItemView {
       this.nodeRenderer.render([], new Map(), this.selection, rootSide(this.direction))
       this.connectors.render([], new Map(), this.style.branch, 0, 0)
       this.boxes = new Map()
+      this.renderBoxes = new Map()
       this.order = []
       this.bounds = { x: 0, y: 0, w: 0, h: 0 }
+      this.contentEl.removeClass('om-performance')
       return
     }
 
@@ -1060,19 +1097,79 @@ export class MindmapView extends ItemView {
     }
     const boxes = layout(tree, this.layoutOptions())
     const animated = motionAllowed && nodes.length <= MOTION_NODE_LIMIT
+    const performance = this.isPerformanceMode()
+    this.contentEl.toggleClass('om-performance', performance)
     this.canvas.setAnimated(animated)
     this.boxes = boxes
     this.order = nodes.map((n) => n.id)
     this.bounds = boundsOf(boxes)
     // Keep logical hit targets at their final positions. Pointer interaction finishes
     // the short transition before hit-testing, so edits never use intermediate geometry.
-    this.motion.update(boxes, animated && !this.needsFit && !this.session && !this.drag.active, frame => {
-      this.nodeRenderer.render(nodes, frame, this.selection, rootSide(this.direction))
-      const bounds = boundsOf(frame)
-      this.connectors.render(nodes, frame, this.style.branch, bounds.x + bounds.w, bounds.y + bounds.h)
-    })
+    const animateLayout = animated && !this.needsFit && !this.session && !this.drag.active
+    // 性能模式必须先确定首屏视野，再决定哪些节点进 DOM；否则会先创建整棵大图的 DOM。
+    if (performance && this.needsFit) this.initializeViewport()
+    this.motion.update(boxes, animateLayout, frame => this.renderScene(nodes, frame, performance))
+    if (!performance) this.initializeViewport()
+  }
 
-    this.initializeViewport()
+  /**
+   * 把一帧布局写进 DOM。普通模式渲染全部可见节点；性能模式只渲染视口附近的节点，
+   * 连线层只为实际渲染的子节点生成入边。
+   */
+  private renderScene(nodes: MindNode[], frame: LayoutResult, performance: boolean): void {
+    this.renderBoxes = frame
+    const root = rootSide(this.direction)
+    const bounds = boundsOf(frame)
+    if (!performance) {
+      this.nodeRenderer.render(nodes, frame, this.selection, root)
+      this.connectors.render(nodes, frame, this.style.branch, bounds.x + bounds.w, bounds.y + bounds.h)
+      return
+    }
+
+    const viewport = this.canvas.viewportContentRect(PERFORMANCE_CULL_BUFFER_PX)
+    if (!viewport) {
+      this.nodeRenderer.render([], new Map(), this.selection, root)
+      this.connectors.render([], new Map(), this.style.branch, 1, 1)
+      return
+    }
+    const visible = nodesInViewport(nodes, frame, viewport)
+    this.nodeRenderer.render(visible.nodes, frame, this.selection, root)
+    this.connectors.render(
+      nodes,
+      frame,
+      this.style.branch,
+      bounds.x + bounds.w,
+      bounds.y + bounds.h,
+      visible.ids,
+    )
+  }
+
+  private isPerformanceMode(): boolean {
+    // parser / reconcile 的 byId 只装真实节点，不含虚拟 root。
+    const total = this.tree ? this.tree.byId.size : 0
+    return shouldUsePerformanceMode(this.host.settings.performanceMode, Platform.isMobile, total)
+  }
+
+  /**
+   * 视口 transform 变了，下一帧重新裁剪。平移和缩放手势每帧都会触发，
+   * 用 requestAnimationFrame 合并成一次 DOM 更新，避免比浏览器重绘还勤。
+   */
+  private scheduleVisibleRender(): void {
+    if (!this.ready || !this.tree || this.needsFit ||
+        !this.isPerformanceMode() || this.visibleRenderFrame !== null) return
+    const win = this.contentEl.ownerDocument?.defaultView ?? window
+    this.visibleRenderFrame = win.requestAnimationFrame(() => {
+      this.visibleRenderFrame = null
+      if (!this.ready || !this.tree || !this.isPerformanceMode() || this.renderBoxes.size === 0) return
+      this.renderScene(visibleNodes(this.tree), this.renderBoxes, true)
+    })
+  }
+
+  private cancelVisibleRender(): void {
+    if (this.visibleRenderFrame === null) return
+    const win = this.contentEl.ownerDocument?.defaultView ?? window
+    win.cancelAnimationFrame(this.visibleRenderFrame)
+    this.visibleRenderFrame = null
   }
 
   /** 当前样式对应的布局参数。draw 与性能自检共用，免得两处各写一份。 */

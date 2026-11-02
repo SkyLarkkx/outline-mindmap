@@ -13,6 +13,8 @@ import { normalizeViewport, type ViewportState } from '../settings/ViewPreferenc
 interface CanvasHooks {
   onUserChange?(): void
   onGestureStart?(): void
+  /** 视口 transform 发生变化后调用；用于性能模式重新计算可见节点。 */
+  onViewportChange?(): void
   panNodes?(): boolean
 }
 
@@ -159,6 +161,55 @@ export class Canvas {
     this.ty = centerTranslate(box.y * this.scale, box.h * this.scale, this.height)
     this.applyNow(animate)
     return true
+  }
+
+  /**
+   * 以指定比例把内容放到视口的指定锚点。用于性能模式的可读局部首屏：
+   * 第一个根分支放在左侧 30% 处（分支向左时反过来），把更多空间留给后代。
+   */
+  focusOn(
+    box: Box,
+    scale = 1,
+    animate = false,
+    anchorX = 0.5,
+    anchorY = 0.5,
+  ): boolean {
+    if (this.width <= 0 || this.height <= 0) return false
+    this.scale = clamp(scale, MIN_SCALE, MAX_SCALE)
+    this.tx = this.width * clamp(anchorX, 0, 1) - (box.x + box.w / 2) * this.scale
+    this.ty = this.height * clamp(anchorY, 0, 1) - (box.y + box.h / 2) * this.scale
+    // 节点本身不该被推出屏幕；只有它放得下时才做这一步。
+    const margin = Math.min(12, this.width / 4, this.height / 4)
+    if (box.w * this.scale <= this.width - margin * 2) {
+      const left = box.x * this.scale + this.tx
+      if (left < margin) this.tx += margin - left
+      else if (left + box.w * this.scale > this.width - margin) {
+        this.tx -= left + box.w * this.scale - (this.width - margin)
+      }
+    }
+    this.applyNow(animate)
+    return true
+  }
+
+  hasSize(): boolean {
+    return this.width > 0 && this.height > 0
+  }
+
+  /**
+   * 当前视口对应的内容坐标矩形。`buffer` 是额外的屏幕像素边距，
+   * 用来预加载即将滚入视野的节点，减少快速平移时的空白。
+   */
+  viewportContentRect(buffer = 0): Box | null {
+    if (this.width <= 0 || this.height <= 0) return null
+    const pad = Math.max(0, buffer) / this.scale
+    const left = this.tx === 0 ? 0 : -this.tx / this.scale
+    const top = this.ty === 0 ? 0 : -this.ty / this.scale
+    return {
+      x: left - pad,
+      y: top - pad,
+      w: this.width / this.scale + pad * 2,
+      h: this.height / this.scale + pad * 2,
+    }
   }
 
   snapshot(): ViewportState | undefined {
@@ -428,6 +479,7 @@ export class Canvas {
     this.content.setCssStyles({
       transform: `translate(${this.tx}px, ${this.ty}px) scale(${this.scale})`,
     })
+    this.hooks.onViewportChange?.()
   }
 }
 
