@@ -1,4 +1,5 @@
 import type { MindNode, MindTree } from '../core/types'
+import { parseInline } from './inline'
 
 export interface SearchMatch { content: string; matches: [number, number][] }
 export interface SearchState { match: SearchMatch }
@@ -64,4 +65,52 @@ export function observeEphemeralState<T extends { setEphemeralState(state: unkno
     active = false
     if (target.setEphemeralState === wrapped) target.setEphemeralState = original
   }
+}
+
+
+/** Strip HTML tags and entities for search; keep this file independent of Obsidian. */
+function plainSearchText(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+}
+
+/** Node-label text used by the in-map search. Strip Markdown/HTML and math delimiters. */
+export function nodeSearchText(raw: string): string {
+  return plainSearchText(parseInline(raw).map(segment => segment.text).join(''))
+}
+
+export interface NodeSearchEntry {
+  node: MindNode
+  text: string
+  folded: string
+}
+
+export function nodeSearchEntry(node: MindNode): NodeSearchEntry {
+  const text = nodeSearchText(node.text)
+  return { node, text, folded: text.toLocaleLowerCase() }
+}
+
+/**
+ * All actual-case occurrences of a case-insensitive query in one label.
+ * Results are deduplicated by visible text so NodeRenderer can mark every
+ * occurrence with its existing term-highlighting path.
+ */
+export function findNodeSearchTerms(
+  text: string,
+  folded: string,
+  queryLower: string,
+): string[] {
+  if (!queryLower) return []
+  const terms = new Set<string>()
+  let at = 0
+  while ((at = folded.indexOf(queryLower, at)) >= 0) {
+    terms.add(text.slice(at, at + queryLower.length))
+    at += Math.max(1, queryLower.length)
+  }
+  return [...terms].filter(term => term.length > 0)
 }

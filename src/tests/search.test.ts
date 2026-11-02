@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from '../core/parser'
-import { observeEphemeralState, searchState, searchTargets } from '../view/search'
+import {
+  findNodeSearchTerms,
+  nodeSearchText,
+  observeEphemeralState,
+  searchState,
+  searchTargets,
+} from '../view/search'
 
 describe('search navigation', () => {
   it('rejects malformed payloads and copies valid ranges including zero-width regex hits', () => {
@@ -44,5 +50,23 @@ describe('search navigation', () => {
     expect(target.setEphemeralState).toBe(later)
     expect(seen).toHaveBeenCalledTimes(1)
     expect(target.value).toBe('after unload')
+  })
+})
+
+
+describe('in-map node search', () => {
+  it('searches readable node text without markup or HTML tags', () => {
+    const text = nodeSearchText('**Bold** <span style="color:red">HTML</span> [[Note|alias]] $x^2$')
+    expect(text).toBe('Bold HTML alias x^2')
+    expect(text).not.toContain('<span')
+    expect(text).not.toContain('**')
+  })
+
+  it('finds every case-insensitive occurrence and preserves actual casing', () => {
+    const text = 'Alpha alpha ALPHA'
+    expect(findNodeSearchTerms(text, text.toLocaleLowerCase(), 'alpha')).toEqual([
+      'Alpha', 'alpha', 'ALPHA',
+    ])
+    expect(findNodeSearchTerms(text, text.toLocaleLowerCase(), '')).toEqual([])
   })
 })

@@ -74,6 +74,11 @@ export class Modal {}
 export class Setting {}
 export class Menu {}
 export class Notice { constructor(public message: string) {} }
+export class Scope {
+  constructor(_parent?: unknown) {}
+  register(): unknown { return {} }
+  unregister(): void {}
+}
 export const moment = { locale: () => 'zh' }
 export const loadMathJax = async (): Promise<void> => {}
 export const setIcon = (): void => {}

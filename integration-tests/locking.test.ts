@@ -235,9 +235,10 @@ describe('view preferences and toolbar integration', () => {
   it('replaces layout with an accessible lock button and disables unlocking in Reading mode', () => {
     const host = new FakeElement(), toggle = vi.fn(), preview = vi.fn()
     const toolbar = new Toolbar(host as any, { fit: vi.fn(), zoom: vi.fn(), expandAll: vi.fn(),
-      collapseAll: vi.fn(), openStyle: vi.fn(), preview, afterAction: vi.fn(), toggleLock: toggle })
+      collapseAll: vi.fn(), openStyle: vi.fn(), preview, search: vi.fn(),
+      afterAction: vi.fn(), toggleLock: toggle })
     const buttons = findByClass(host, 'om-tool')
-    expect(buttons.map(button => button.dataset['action'])).toEqual(['fit', 'zoom-out', 'zoom-in', 'expand', 'collapse', 'preview', 'lock', 'style'])
+    expect(buttons.map(button => button.dataset['action'])).toEqual(['fit', 'zoom-out', 'zoom-in', 'expand', 'collapse', 'search', 'preview', 'lock', 'style'])
     const lock: any = buttons.find(button => button.dataset['action'] === 'lock')!
     const previewButton: any = buttons.find(button => button.dataset['action'] === 'preview')!
     expect(lock.tagName).toBe('button')

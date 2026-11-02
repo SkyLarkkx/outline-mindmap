@@ -21,6 +21,8 @@ export interface ToolbarHooks {
   openStyle(): void
   /** 打开 / 关闭选中节点的正文预览。 */
   preview(): void
+  /** 打开 / 关闭节点搜索。 */
+  search(): void
   /** 每个动作之后把键盘焦点还给画布。 */
   afterAction(): void
 }
@@ -40,6 +42,7 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'zoom-in', icon: 'zoom-in', label: 'tool.zoomIn' },
   { action: 'expand', icon: 'chevrons-up-down', label: 'tool.expand' },
   { action: 'collapse', icon: 'chevrons-down-up', label: 'tool.collapse' },
+  { action: 'search', icon: 'search', label: 'tool.search' },
   { action: 'preview', icon: 'eye', label: 'tool.preview' },
   { action: 'lock', icon: 'lock-open', label: 'tool.lock' },
   { action: 'style', icon: 'palette', label: 'tool.style' },
@@ -49,6 +52,7 @@ export class Toolbar {
   readonly el: HTMLElement
   private lock!: HTMLButtonElement
   private preview!: HTMLButtonElement
+  private searchButton!: HTMLButtonElement
   private lockIcon: 'lock' | 'lock-open' = 'lock-open'
   private readonly buttons = new Map<HTMLButtonElement, ButtonSpec>()
   private refreshTimer: number | null = null
@@ -84,6 +88,7 @@ export class Toolbar {
     btn.type = 'button'
     if (spec.action === 'lock') this.lock = btn
     if (spec.action === 'preview') this.preview = btn
+    if (spec.action === 'search') this.searchButton = btn
     btn.dataset['action'] = spec.action
     // Obsidian 用 aria-label 显示气泡提示，顺便也是无障碍名字
     btn.setAttribute('aria-label', t(spec.label))
@@ -137,6 +142,12 @@ export class Toolbar {
     this.preview.setAttribute('aria-label', t(active ? 'tool.previewClose' : 'tool.preview'))
   }
 
+  setSearchActive(active: boolean): void {
+    this.searchButton.toggleClass('is-active', active)
+    this.searchButton.setAttribute('aria-pressed', String(active))
+    this.searchButton.setAttribute('aria-label', t('tool.search'))
+  }
+
   /** 按下就阻止默认行为：否则浏览器会把焦点挪到按钮上，快捷键随即失效。 */
   private readonly onPointerDown = (e: PointerEvent): void => {
     e.preventDefault()
@@ -162,6 +173,9 @@ export class Toolbar {
       case 'collapse':
         this.hooks.collapseAll()
         break
+      case 'search':
+        this.hooks.search()
+        return
       case 'preview':
         this.hooks.preview()
         break

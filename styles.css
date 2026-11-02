@@ -639,6 +639,86 @@
 }
 .om-search-bar.is-hidden { display: none; }
 .om-search-bar span { flex: 1 1 140px; }
+
+/* 工具栏节点搜索：桌面靠右上，移动端放到工具栏下方。 */
+.om-find {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  box-sizing: border-box;
+  width: min(340px, calc(100% - 16px));
+  padding: 4px 5px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 7px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.om-find.is-hidden { display: none; }
+.om-find:focus-within { border-color: var(--interactive-accent); }
+.om-find.is-empty { border-color: var(--text-error); }
+
+.om-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 180px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.om-find-input:focus { box-shadow: none; }
+
+.om-find-count {
+  flex: 0 0 auto;
+  min-width: 34px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.om-find.is-empty .om-find-count { color: var(--text-error); }
+
+.om-find-button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.om-find-button:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.om-find-button:disabled { cursor: default; opacity: 0.35; }
+.om-find-button .svg-icon,
+.om-find-button > svg { display: block; width: 15px; height: 15px; }
+
+@media (max-width: 640px) {
+  .om-find {
+    top: 52px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+  .om-find-input { width: auto; }
+}
 .om-search-excerpt {
   flex: 1 1 100%;
   max-height: 4.5em;

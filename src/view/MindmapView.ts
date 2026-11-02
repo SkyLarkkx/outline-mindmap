@@ -17,6 +17,7 @@ import {
   MarkdownView,
   Notice,
   Platform,
+  Scope,
   loadMathJax,
   type Menu,
   type TFile,
@@ -74,7 +75,14 @@ import { NodeRenderer } from './NodeRenderer'
 import { Toolbar } from './Toolbar'
 import { LayoutMotion, MOTION_NODE_LIMIT } from './LayoutMotion'
 import { collectPreviewableIds, nodeBody } from './body'
-import { searchState, searchTargets, type SearchState } from './search'
+import {
+  findNodeSearchTerms,
+  nodeSearchEntry,
+  searchState,
+  searchTargets,
+  type NodeSearchEntry,
+  type SearchState,
+} from './search'
 import { clearMeasureCache, readFont, toggleSize, type FontSpec } from './measure'
 import { clearRichMeasureCache, isRichNode, measureNodeForLayout, measureRichNodes } from './richMeasure'
 import { nodesInViewport } from './visibility'
@@ -101,6 +109,17 @@ const TOUCH_CLICK_SUPPRESS_MS = 600
  * `intent` 决定提交时生成哪种 EditPlan；`draft` 为 true 表示正在编辑的是草稿节点
  * （文件里还没有它，Esc 掉就什么都没发生过）。
  */
+interface NodeSearchResult {
+  node: MindNode
+  terms: string[]
+}
+
+interface NodeSearchState {
+  query: string
+  results: NodeSearchResult[]
+  index: number
+}
+
 interface Session {
   node: MindNode
   intent: EditIntent
@@ -187,6 +206,14 @@ export class MindmapView extends ItemView {
   private search: { state: SearchState; path: string | null; pending: boolean } | null = null
   private searchBar!: HTMLElement
   private searchFocusId: string | null = null
+  /** 工具栏的节点搜索；与上面来自 Obsidian 正文搜索的 search 分开维护。 */
+  private nodeSearch: NodeSearchState | null = null
+  private nodeSearchEntries: NodeSearchEntry[] = []
+  private findBar!: HTMLElement
+  private findInput!: HTMLInputElement
+  private findCount!: HTMLElement
+  private findPrev!: HTMLButtonElement
+  private findNext!: HTMLButtonElement
   private motion!: LayoutMotion
   private reducedMotion: MediaQueryList | null = null
   /** 首次绘制恢复记忆视野；没有记忆时适应画布。尺寸为零时延后。 */
@@ -245,6 +272,7 @@ export class MindmapView extends ItemView {
   override setEphemeralState(value: unknown): void {
     const state = searchState(value)
     if (!state) return
+    if (this.nodeSearch) this.deactivateNodeSearch()
     this.searchFocusId = null
     this.search = { state, path: this.pendingPath ?? this.file?.path ?? null, pending: true }
     if (this.ready && this.tree) this.applySearch()
@@ -322,6 +350,188 @@ export class MindmapView extends ItemView {
       this.searchFocusId = null
       this.needsFit = false
     }
+  }
+
+  // ── 工具栏节点搜索 ──────────────────────────────────────────
+
+  /**
+   * 只搜索节点标签，不搜索正文。输入栏在工具栏右上角；快捷键 Ctrl/Cmd+F。
+   * 搜索是大小写不敏感的纯文本包含匹配，预先把每个节点的可见文字折叠一次，
+   * 每次输入只做 O(节点数) 的 indexOf，不重新解析 Markdown。
+   */
+  private createFindBar(host: HTMLElement): void {
+    this.findBar = host.createDiv({ cls: 'om-find is-hidden' })
+    this.findBar.setAttribute('role', 'search')
+    this.findInput = this.findBar.createEl('input', { cls: 'om-find-input' })
+    this.findInput.type = 'text'
+    this.findInput.placeholder = t('search.nodePlaceholder')
+    this.findInput.setAttribute('aria-label', t('search.nodePlaceholder'))
+    this.findInput.setAttribute('spellcheck', 'false')
+    this.findCount = this.findBar.createSpan({ cls: 'om-find-count', text: '0/0' })
+    this.findCount.setAttribute('aria-live', 'polite')
+    this.findPrev = this.findBar.createEl('button', { cls: 'om-find-button', text: '↑' })
+    this.findNext = this.findBar.createEl('button', { cls: 'om-find-button', text: '↓' })
+    const close = this.findBar.createEl('button', { cls: 'om-find-button', text: '×' })
+    this.findPrev.type = 'button'
+    this.findNext.type = 'button'
+    close.type = 'button'
+    this.findPrev.setAttribute('aria-label', t('search.previous'))
+    this.findNext.setAttribute('aria-label', t('search.next'))
+    close.setAttribute('aria-label', t('search.close'))
+    for (const button of [this.findPrev, this.findNext, close]) {
+      button.addEventListener('pointerdown', (event) => event.preventDefault())
+    }
+    this.findPrev.addEventListener('click', () => {
+      this.moveNodeSearch(-1)
+      this.findInput.focus()
+    })
+    this.findNext.addEventListener('click', () => {
+      this.moveNodeSearch(1)
+      this.findInput.focus()
+    })
+    close.addEventListener('click', () => this.closeNodeSearch())
+    this.findInput.addEventListener('input', this.onFindInput)
+    this.findInput.addEventListener('keydown', this.onFindKeyDown)
+  }
+
+  private rebuildNodeSearchEntries(): void {
+    const tree = this.tree
+    this.nodeSearchEntries = tree
+      ? [...tree.byId.values()]
+        .sort((a, b) => a.titleLine - b.titleLine)
+        .map(nodeSearchEntry)
+      : []
+  }
+
+  private openNodeSearch(): void {
+    if (!this.tree) return
+    if (this.nodeSearch) {
+      this.findInput.focus()
+      this.findInput.select()
+      return
+    }
+    // 节点搜索和 Obsidian 原生正文搜索共用一层高亮；打开节点搜索时收掉原生结果。
+    this.cancelTouchPreview()
+    this.hideHoverPreview()
+    this.clearSearch()
+    this.nodeSearch = { query: '', results: [], index: -1 }
+    this.findInput.value = ''
+    this.findBar.removeClass('is-hidden')
+    this.toolbar.setSearchActive(true)
+    this.updateNodeSearchUi()
+    this.draw()
+    this.findInput.focus()
+    this.findInput.select()
+  }
+
+  private toggleNodeSearch(): void {
+    if (this.nodeSearch) this.closeNodeSearch()
+    else this.openNodeSearch()
+  }
+
+  private deactivateNodeSearch(): void {
+    if (!this.nodeSearch) return
+    this.nodeSearch = null
+    this.findBar?.addClass('is-hidden')
+    this.toolbar?.setSearchActive(false)
+    this.nodeRenderer?.setSearch(new Map())
+  }
+
+  private closeNodeSearch(restoreFocus = true): void {
+    if (!this.nodeSearch) return
+    this.deactivateNodeSearch()
+    this.draw()
+    if (restoreFocus) this.canvas.focus()
+  }
+
+  private readonly onFindInput = (): void => {
+    const search = this.nodeSearch
+    if (!search) return
+    search.query = this.findInput.value
+    this.recomputeNodeSearch(true)
+  }
+
+  private readonly onFindKeyDown = (e: KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault()
+      e.stopPropagation()
+      this.findInput.select()
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      this.closeNodeSearch()
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      this.moveNodeSearch(e.shiftKey ? -1 : 1)
+      return
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      e.stopPropagation()
+      this.moveNodeSearch(e.key === 'ArrowDown' ? 1 : -1)
+    }
+  }
+
+  private recomputeNodeSearch(jump: boolean): void {
+    const search = this.nodeSearch
+    if (!search) return
+    const queryLower = search.query.toLocaleLowerCase()
+    const previousId = search.results[search.index]?.node.id ?? null
+    const results: NodeSearchResult[] = []
+    const highlights = new Map<string, string[]>()
+    if (queryLower) {
+      for (const entry of this.nodeSearchEntries) {
+        const terms = findNodeSearchTerms(entry.text, entry.folded, queryLower)
+        if (!terms.length) continue
+        results.push({ node: entry.node, terms })
+        highlights.set(entry.node.id, terms)
+      }
+    }
+    const previousIndex = previousId === null ? -1 : results.findIndex(result => result.node.id === previousId)
+    search.results = results
+    search.index = results.length === 0
+      ? -1
+      : jump ? 0 : Math.max(0, previousIndex)
+    this.nodeRenderer.setSearch(highlights)
+    this.updateNodeSearchUi()
+    if (!jump) return
+    if (search.index >= 0) this.revealNodeSearchResult(results[search.index]!.node)
+    else this.draw()
+  }
+
+  private moveNodeSearch(delta: number): void {
+    const search = this.nodeSearch
+    if (!search || search.results.length === 0) return
+    const next = (search.index + delta + search.results.length) % search.results.length
+    search.index = next
+    this.updateNodeSearchUi()
+    this.revealNodeSearchResult(search.results[next]!.node)
+  }
+
+  private revealNodeSearchResult(node: MindNode): void {
+    for (let parent = node.parent; parent; parent = parent.parent) parent.collapsed = false
+    this.setSelection(node.id)
+    this.draw()
+    const box = this.boxes.get(node.id)
+    if (!box) return
+    this.needsFit = false
+    this.canvas.centerOn(box, true, 0.85)
+    this.rememberViewport()
+  }
+
+  private updateNodeSearchUi(): void {
+    const search = this.nodeSearch
+    const total = search?.results.length ?? 0
+    const current = search && search.index >= 0 ? search.index + 1 : 0
+    this.findCount?.setText(`${current}/${total}`)
+    if (this.findPrev) this.findPrev.disabled = total === 0
+    if (this.findNext) this.findNext.disabled = total === 0
+    this.findBar?.toggleClass('is-empty', !!search?.query && total === 0)
   }
 
   private resizeCanvas(): void {
@@ -545,6 +755,14 @@ export class MindmapView extends ItemView {
     this.register(() => this.reducedMotion?.removeEventListener('change', onMotionChange))
     host.empty()
     host.addClass('om-root')
+    // View scope takes precedence while the map has focus, so Mod+F is ours
+    // instead of the editor/global search binding.
+    this.scope = new Scope(this.app.scope)
+    this.scope.register(['Mod'], 'f', (event) => {
+      event.preventDefault()
+      this.openNodeSearch()
+      return false
+    })
 
     // 视图刚打开时容器尺寸是 0，适应画布得等 ResizeObserver 报出真实尺寸。
     //
@@ -570,6 +788,7 @@ export class MindmapView extends ItemView {
     })
     this.empty = host.createDiv({ cls: 'om-empty', text: t('view.empty') })
     this.searchBar = host.createDiv({ cls: 'om-search-bar is-hidden' })
+    this.createFindBar(host)
 
     // 工具栏（M7）。浮在画布上层，两种形态（主页面 / 侧边栏）共用同一套按钮。
     this.toolbar = new Toolbar(host, {
@@ -580,6 +799,7 @@ export class MindmapView extends ItemView {
       toggleLock: () => this.toggleLock(),
       openStyle: () => this.openStyle(),
       preview: () => this.togglePinnedPreview(),
+      search: () => this.toggleNodeSearch(),
       afterAction: () => this.canvas.focus(),
     })
 
@@ -722,6 +942,7 @@ export class MindmapView extends ItemView {
     this.unsubscribePreferences = null
     this.host.preferences.flush()
     this.motion?.reset()
+    this.deactivateNodeSearch()
     this.clearSearch()
     // 关视图时未提交的编辑一律作废：这时候再往文件里写字，用户根本看不见
     this.cancelSession()
@@ -956,6 +1177,7 @@ export class MindmapView extends ItemView {
     this.clearPreviewTimers()
     this.bodyPreview?.close(false)
     this.touchPreview?.close(false)
+    this.deactivateNodeSearch()
     if (this.search?.path !== next?.path) this.clearSearch()
     this.cancelSession()
     this.file = next
@@ -1047,6 +1269,7 @@ export class MindmapView extends ItemView {
   private refresh(text: string): void {
     this.tree = reconcile(this.tree, parse(text, this.parseOptions()))
     this.previewableIds = collectPreviewableIds(this.tree)
+    this.rebuildNodeSearchEntries()
     // 被别处删掉的节点不能继续留在选中集合里，否则删除/拖拽会拿着不存在的 id 去生成 plan
     const byId = this.tree.byId
     for (const id of [...this.selection]) if (!byId.has(id)) this.selection.delete(id)
@@ -1055,8 +1278,14 @@ export class MindmapView extends ItemView {
       if (this.search) this.search.pending = true
     }
     if (this.search && !this.search.pending && !searchTargets(this.tree, this.search.state)) this.clearSearch()
-    if (this.search) this.applySearch()
-    else this.draw()
+    if (this.nodeSearch) {
+      this.recomputeNodeSearch(false)
+      this.draw()
+    } else if (this.search) {
+      this.applySearch()
+    } else {
+      this.draw()
+    }
     this.syncBodyPreview()
   }
 
@@ -1691,6 +1920,18 @@ export class MindmapView extends ItemView {
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     this.motion?.finish()
     if (this.editor.active || e.isComposing) return
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault()
+      e.stopPropagation()
+      this.openNodeSearch()
+      return
+    }
+    if (e.key === 'Escape' && this.nodeSearch) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.closeNodeSearch()
+      return
+    }
     // 拖拽中按 Esc = 放弃这次拖拽，文件一个字都不写
     if (e.key === 'Escape' && this.drag.active) {
       e.preventDefault()

@@ -5,7 +5,7 @@
 > **This is a personal fork** of [cimuyang/outline-mindmap](https://github.com/cimuyang/outline-mindmap),
 > based on upstream **v1.3.4**. It adds node-body previews, safe inline HTML in node labels, ordered-list
 > nodes and some robustness fixes while keeping the same note format and plugin id.
-> Current fork release: **1.7.0**.
+> Current fork release: **1.8.0**.
 > Fork: [SkyLarkkx/outline-mindmap](https://github.com/SkyLarkkx/outline-mindmap)
 
 Turn a Markdown note’s outline into a mindmap with live two-way editing, click-to-locate navigation and customizable styles. The note remains the source of truth; settings stay in the plugin’s `data.json`, without adding frontmatter, tags or hidden markers. This fork additionally lets you **preview a node’s body in place**, render **a safe subset of inline HTML** in node labels, and use **ordered lists as ordinary list nodes**.
@@ -16,7 +16,7 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 
 ![Outline Mindmap demo](demo1.png)
 
-- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.7.0 (upstream base v1.3.4)**
+- **Obsidian** 1.7.2+ · desktop and mobile · **fork release 1.8.0 (upstream base v1.3.4)**
 - The interface follows Obsidian's language: 中文 / English, no setting to touch.
 
 ## Features
@@ -24,6 +24,7 @@ Demos were recorded with an earlier version; in 1.3.4, layout direction is in **
 ### Fork additions (not present in upstream v1.3.4)
 
 - **Node body preview**: Hover a node to preview its direct body with Obsidian’s `MarkdownRenderer`; HTML, images, tables, math and embeds work as they do in Reading view. Pin the preview into a side panel or toggle it from the toolbar; the pinned panel is resizable, and the touch long-press sheet is independent of it. A small eye in the node’s bottom-right corner marks nodes with direct body text (detail/middle zoom only). It is read-only and never writes to the note.
+- **Node search**: A toolbar search finds node labels only (never body text). Use Ctrl/Cmd+F or the search button; the current result is revealed on the map, and Enter/Shift+Enter or the up/down buttons move through matches.
 - **Large-map performance mode**: Automatically enabled on mobile above 500 total nodes and on desktop above 800. The first view focuses the first root branch at a readable scale, only nodes and edges near the viewport are created, and zoom-based LOD keeps H1–H3 text while turning deeper headings and list nodes into lightweight boxes at the far view. Settings can force it on or off.
 - **Safe inline HTML in node labels**: `<span style="…">`, `mark`, `font`, `strong`, `em`, `sup`, `sub`, `br` and similar inline tags render inside the node itself. A CSS allowlist removes scripts, iframes, event attributes and `url()` values; block-level HTML and images in node labels are intentionally not supported.
 - **Ordered-list nodes**: `1.` / `1)` items are parsed as ordinary list nodes without a visible ordinal. Source markers are preserved on rename/move; new ordered siblings inherit the reference delimiter and new children use `-`; there is no automatic renumbering.
@@ -182,7 +183,7 @@ when a branch runs leftwards, `←` is the key that takes you *into* its childre
 
 ### Toolbar
 
-Fit to canvas · Zoom out · Zoom in · Expand all · Collapse all · Preview node body · Lock · Style settings.
+Fit to canvas · Zoom out · Zoom in · Expand all · Collapse all · Search nodes · Preview node body · Lock · Style settings.
 
 Layout direction (branches right / left / both sides) is in **Style settings**, with the same
 global and per-note saving, live preview and Cancel behavior as other styles.
@@ -277,11 +278,17 @@ If the vault already has this plugin under a differently-named folder, it reuses
 rather than creating a second copy with the same plugin id.
 
 Before publishing a fork build, run `npm test` and `npm run build`. Keep `manifest.json`,
-`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.7.0`;
+`package.json`, `package-lock.json` and `versions.json` in sync. The fork release version is `1.8.0`;
 the upstream base remains `1.3.4`. If you publish release assets, attach `main.js`, `manifest.json`
 and `styles.css`. **The tag carries no `v` prefix** — Obsidian looks releases up by the bare version number.
 
 ## What's new
+
+### Fork v1.8.0
+
+- **Node-label search**: Add a toolbar search field with a Ctrl/Cmd+F shortcut. It searches only node labels (list items included when enabled), not body text. The current match is revealed on the map; Enter/Shift+Enter and the right-side up/down buttons navigate matches with wrap-around.
+- **Fast matching**: Searchable node text is normalized once per tree refresh; each keystroke is a case-insensitive substring scan over the cached labels, with all occurrences highlighted through the existing node search renderer.
+- **Native search preserved**: The in-map search is separate from Obsidian’s native note search. Opening the node search clears the native result overlay so the two highlight systems do not compete.
 
 ### Fork v1.7.0
 
