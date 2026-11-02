@@ -59,10 +59,13 @@ export function measureRichNodes(nodes: readonly MindNode[], font: FontSpec, hos
     for (const item of pending) {
       const width = Math.ceil(item.el.offsetWidth)
       const height = Math.ceil(item.el.offsetHeight)
+      // HTML 的内联 padding、字体度量和亚像素舍入会让“刚好等于文字宽度”的节点在
+      // 部分主题/字体下把最后一个字挤到下一行。留出一个字宽的安全余量。
+      const widthSlack = Math.max(8, Math.ceil(font.size))
       richCache.set(
         item.key,
         width > 0 && height > 0
-          ? { w: width + 1, h: height + 1 }
+          ? { w: width + widthSlack, h: height + 1 }
           : measureNode(plainTextOf(item.text), font),
       )
     }
