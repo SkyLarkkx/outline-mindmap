@@ -19,6 +19,8 @@ export interface ToolbarHooks {
   toggleLock(): void
   /** 打开样式窗口（M8）。 */
   openStyle(): void
+  /** 打开 / 关闭选中节点的正文预览。 */
+  preview(): void
   /** 每个动作之后把键盘焦点还给画布。 */
   afterAction(): void
 }
@@ -38,6 +40,7 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'zoom-in', icon: 'zoom-in', label: 'tool.zoomIn' },
   { action: 'expand', icon: 'chevrons-up-down', label: 'tool.expand' },
   { action: 'collapse', icon: 'chevrons-down-up', label: 'tool.collapse' },
+  { action: 'preview', icon: 'eye', label: 'tool.preview' },
   { action: 'lock', icon: 'lock-open', label: 'tool.lock' },
   { action: 'style', icon: 'palette', label: 'tool.style' },
 ]
@@ -45,6 +48,7 @@ const BUTTONS: readonly ButtonSpec[] = [
 export class Toolbar {
   readonly el: HTMLElement
   private lock!: HTMLButtonElement
+  private preview!: HTMLButtonElement
 
   constructor(
     host: HTMLElement,
@@ -67,6 +71,7 @@ export class Toolbar {
     const btn = this.el.createEl('button', { cls: 'om-tool' })
     btn.type = 'button'
     if (spec.action === 'lock') this.lock = btn
+    if (spec.action === 'preview') this.preview = btn
     btn.dataset['action'] = spec.action
     // Obsidian 用 aria-label 显示气泡提示，顺便也是无障碍名字
     btn.setAttribute('aria-label', t(spec.label))
@@ -80,6 +85,12 @@ export class Toolbar {
     this.lock.toggleClass('is-active', locked)
     this.lock.setAttribute('aria-pressed', String(locked))
     this.lock.setAttribute('aria-label', t(forced ? 'tool.readingLock' : locked ? 'tool.unlock' : 'tool.lock'))
+  }
+
+  setPreviewActive(active: boolean): void {
+    this.preview.toggleClass('is-active', active)
+    this.preview.setAttribute('aria-pressed', String(active))
+    this.preview.setAttribute('aria-label', t(active ? 'tool.previewClose' : 'tool.preview'))
   }
 
   /** 按下就阻止默认行为：否则浏览器会把焦点挪到按钮上，快捷键随即失效。 */
@@ -106,6 +117,9 @@ export class Toolbar {
         break
       case 'collapse':
         this.hooks.collapseAll()
+        break
+      case 'preview':
+        this.hooks.preview()
         break
       case 'lock':
         if (!this.lock.disabled) this.hooks.toggleLock()

@@ -1,5 +1,5 @@
 /**
- * 插件设置：四个开关（M8）。样式本身在 StyleStore / StyleModal 里。
+ * 插件设置：视图行为开关 + 样式数据。样式本身在 StyleStore / StyleModal 里。
  *
  * 【所有配置存在插件自身的 data.json，绝不写进笔记】（第 1 章红线）。
  */
@@ -15,6 +15,8 @@ import { defaultStyleData, normalizeStyleData, type StyleData, type StyleStore }
 export interface MindmapSettings {
   /** 单击节点是否跳转到笔记对应位置。关掉之后单击只选中。 */
   clickToJump: boolean
+  /** 鼠标悬停节点时是否自动预览它标题下的正文。 */
+  hoverPreview: boolean
   /** 固定显示一篇笔记：开启后导图不再跟着活动笔记切换（M7。键名保持 lockFile，不迁移旧配置）。 */
   lockFile: boolean
   /** 默认启用短过渡；大图与系统减少动态效果时使用即时布局。 */
@@ -34,6 +36,7 @@ export interface MindmapSettings {
 
 export const DEFAULT_SETTINGS: MindmapSettings = {
   clickToJump: true,
+  hoverPreview: true,
   lockFile: false,
   gracefulAnimation: true,
   strictLineBreak: false,
@@ -51,6 +54,7 @@ export function normalizeSettings(raw: unknown): MindmapSettings {
     typeof o[key] === 'boolean' ? o[key] : fallback
   return {
     clickToJump: bool('clickToJump', DEFAULT_SETTINGS.clickToJump),
+    hoverPreview: bool('hoverPreview', DEFAULT_SETTINGS.hoverPreview),
     lockFile: bool('lockFile', DEFAULT_SETTINGS.lockFile),
     gracefulAnimation: bool('gracefulAnimation', DEFAULT_SETTINGS.gracefulAnimation),
     strictLineBreak: bool('strictLineBreak', DEFAULT_SETTINGS.strictLineBreak),
@@ -94,6 +98,7 @@ export class MindmapSettingTab extends PluginSettingTab {
     containerEl.empty()
 
     this.toggle('settings.clickToJump', 'settings.clickToJumpDesc', 'clickToJump')
+    this.toggle('settings.hoverPreview', 'settings.hoverPreviewDesc', 'hoverPreview')
     this.toggle('settings.lockFile', 'settings.lockFileDesc', 'lockFile')
     this.toggle('settings.gracefulAnimation', 'settings.gracefulAnimationDesc', 'gracefulAnimation')
     this.toggle('settings.strictLineBreak', 'settings.strictLineBreakDesc', 'strictLineBreak')

@@ -573,3 +573,235 @@
   overflow-wrap: anywhere;
   color: var(--text-normal);
 }
+
+/* ── 节点正文预览（BodyPreview）────────────────────────────── */
+
+/*
+ * 悬浮态由 JS 写 left / top；钉住后走 .is-pinned 的右侧布局。
+ * 内容交给 Obsidian 的 MarkdownRenderer，所以这里只负责「窗口」和滚动，
+ * 不重写 markdown-rendered 内部的标题、表格、图片样式。
+ */
+.om-preview {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(400px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-l);
+  color: var(--text-normal);
+}
+
+.om-preview.is-hidden {
+  display: none;
+}
+
+.om-preview.is-pinned {
+  left: auto !important;
+  top: 46px !important;
+  right: 12px;
+  bottom: 12px;
+  width: min(420px, 46%);
+  max-height: none;
+}
+
+.om-preview-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 9px 8px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  user-select: none;
+}
+
+.om-preview-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.om-preview-title {
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.om-preview-meta {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.3;
+}
+
+.om-preview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.om-preview-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.om-preview-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.om-preview-action:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+.om-preview-action .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.om-preview.is-pinned .om-preview-pin {
+  display: none;
+}
+
+.om-preview-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 14px 14px;
+  overscroll-behavior: contain;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.om-preview-content > :first-child {
+  margin-top: 10px;
+}
+
+.om-preview-content > :last-child {
+  margin-bottom: 0;
+}
+
+.om-preview-content img,
+.om-preview-content video {
+  max-width: 100%;
+  height: auto;
+}
+
+.om-preview-content .markdown-embed,
+.om-preview-content .internal-embed {
+  max-width: 100%;
+}
+
+/* MarkdownRenderer 输出的表格在弹层里也要有可读的边框和单元格间距；
+   正文里的 HTML 表格本身带内联样式时，内联样式会覆盖这里。 */
+.om-preview-content table {
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+}
+
+.om-preview-content th,
+.om-preview-content td {
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  vertical-align: top;
+}
+
+.om-preview-content thead th {
+  background: var(--background-secondary);
+}
+
+.om-preview-content pre {
+  overflow: auto;
+}
+
+.om-preview-status {
+  padding: 12px 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.om-preview-status.is-error {
+  color: var(--text-error);
+}
+
+.om-preview-source {
+  max-height: 40vh;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .om-preview {
+    width: calc(100% - 16px);
+    max-height: calc(100% - 16px);
+  }
+
+  .om-preview.is-pinned {
+    left: 8px !important;
+    right: 8px;
+    top: auto !important;
+    bottom: 8px;
+    width: auto;
+    max-height: 55%;
+  }
+}
+
+/* ── 富文本节点测量 ─────────────────────────────────────────── */
+
+/*
+ * 只在布局前出现一瞬间：把含 HTML 的节点按真实 DOM 排一遍，量出宽高后立即移除。
+ * 放在视口外且 visibility:hidden；不能用 display:none，否则量不到尺寸。
+ */
+.om-measure-layer {
+  position: absolute;
+  top: 0;
+  left: -100000px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.om-node.om-node-measure {
+  position: relative;
+  top: auto;
+  left: auto;
+  height: auto;
+  width: max-content;
+  transform: none;
+}
+
+.om-node.om-node-measure .om-node-text {
+  width: auto;
+}

@@ -10,6 +10,7 @@ import type { MindNode } from '../core/types'
 import { sideOf, type NodeSide } from '../layout'
 import type { Box, LayoutResult } from '../layout/types'
 import { parseInline, tagsFor } from './inline'
+import { hasRichLabel, renderRichLabel } from './richLabel'
 
 interface Slot {
   el: HTMLElement
@@ -187,6 +188,15 @@ export class NodeRenderer {
    */
   private static renderTextInto(host: HTMLElement, text: string, terms: readonly string[] = []): boolean {
     host.empty()
+    // 含安全内联 HTML 的节点走富文本路径；尺寸由 measure.ts 的 DOM 测量预填缓存。
+    if (hasRichLabel(text)) {
+      try {
+        return renderRichLabel(host, text, terms).renderedMath
+      } catch (err: unknown) {
+        console.warn('[outline-mindmap] rich node label render failed', err)
+        host.empty()
+      }
+    }
     let renderedMath = false
     const segments = parseInline(text)
     const visible = segments.map(s => s.text).join('')

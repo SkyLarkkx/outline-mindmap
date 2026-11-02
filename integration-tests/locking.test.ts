@@ -233,12 +233,13 @@ describe('view preferences and toolbar integration', () => {
   })
 
   it('replaces layout with an accessible lock button and disables unlocking in Reading mode', () => {
-    const host = new FakeElement(), toggle = vi.fn()
+    const host = new FakeElement(), toggle = vi.fn(), preview = vi.fn()
     const toolbar = new Toolbar(host as any, { fit: vi.fn(), zoom: vi.fn(), expandAll: vi.fn(),
-      collapseAll: vi.fn(), openStyle: vi.fn(), afterAction: vi.fn(), toggleLock: toggle })
+      collapseAll: vi.fn(), openStyle: vi.fn(), preview, afterAction: vi.fn(), toggleLock: toggle })
     const buttons = findByClass(host, 'om-tool')
-    expect(buttons.map(button => button.dataset['action'])).toEqual(['fit', 'zoom-out', 'zoom-in', 'expand', 'collapse', 'lock', 'style'])
+    expect(buttons.map(button => button.dataset['action'])).toEqual(['fit', 'zoom-out', 'zoom-in', 'expand', 'collapse', 'preview', 'lock', 'style'])
     const lock: any = buttons.find(button => button.dataset['action'] === 'lock')!
+    const previewButton: any = buttons.find(button => button.dataset['action'] === 'preview')!
     expect(lock.tagName).toBe('button')
     toolbar.setLocked(false, false, true); lock.dispatch('click')
     expect(toggle).toHaveBeenCalledTimes(1)
@@ -246,6 +247,11 @@ describe('view preferences and toolbar integration', () => {
     expect(toggle).toHaveBeenCalledTimes(1)
     expect(lock.disabled).toBe(true)
     expect(lock.attributes['aria-pressed']).toBe('true')
+    previewButton.dispatch('click')
+    expect(preview).toHaveBeenCalledTimes(1)
+    toolbar.setPreviewActive(true)
+    expect(previewButton.attributes['aria-pressed']).toBe('true')
+    expect(previewButton.classList.contains('is-active')).toBe(true)
     toolbar.destroy()
     expect(host.children).toEqual([])
   })

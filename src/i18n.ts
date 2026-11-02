@@ -39,6 +39,17 @@ const zh = {
   'view.titleWithNote': '导图：{0}',
   'view.empty': '当前没有可显示的笔记',
 
+  // ── 正文预览（BodyPreview）──
+  'preview.title': '节点正文预览',
+  'preview.untitled': '（未命名节点）',
+  'preview.meta': '正文 · 第 {0}–{1} 行',
+  'preview.loading': '正在渲染正文…',
+  'preview.error': '正文渲染失败，下面显示 Markdown 源码。',
+  'preview.pin': '固定到侧栏',
+  'preview.close': '关闭正文预览',
+  'preview.noSelection': '请先选中一个节点。',
+  'preview.noBody': '这个节点没有正文。',
+
   // ── 跟随自检（MindmapView.diagnostics）──
   'diag.title': '导图跟随自检（{0}，本实例已存活 {1}s）',
   'diag.mainArea': '主页面区',
@@ -77,6 +88,8 @@ const zh = {
   'tool.readingLock': '笔记处于阅读模式，导图已强制锁定',
   'tool.expand': '展开全部',
   'tool.collapse': '折叠全部',
+  'tool.preview': '预览节点正文',
+  'tool.previewClose': '关闭正文预览',
   'tool.style': '样式设置',
   'direction.right': '分支向右',
   'direction.left': '分支向左',
@@ -116,6 +129,10 @@ const zh = {
   'settings.clickToJumpDesc':
     '单击导图节点时，把笔记滚动到对应标题并高亮。只滚屏幕上已经开着的笔记，' +
     '不会替你新开标签页；笔记没开着（比如用「打开为导图」进来的）时单击只选中节点。',
+  'settings.hoverPreview': '悬停预览正文',
+  'settings.hoverPreviewDesc':
+    '鼠标在节点上停留片刻后，用 Obsidian 的阅读视图渲染该节点标题下的正文；' +
+    'HTML、图片、公式和内嵌内容都按阅读视图处理。工具栏的眼睛按钮可以打开固定的侧栏预览。',
   'settings.lockFile': '固定显示一篇笔记',
   'settings.lockFileDesc': '开启后导图不再跟着你切换笔记，一直停在打开它时的那一篇。',
   'settings.gracefulAnimation': '优雅动画',
@@ -164,6 +181,17 @@ const en: Record<MsgKey, string> = {
   'view.titleWithNote': 'Mindmap: {0}',
   'view.empty': 'No note to display',
 
+  // ── Body preview (BodyPreview) ──
+  'preview.title': 'Node body preview',
+  'preview.untitled': '(Untitled node)',
+  'preview.meta': 'Body · lines {0}–{1}',
+  'preview.loading': 'Rendering body…',
+  'preview.error': 'Failed to render the body; showing its Markdown source instead.',
+  'preview.pin': 'Pin to side panel',
+  'preview.close': 'Close body preview',
+  'preview.noSelection': 'Select a node first.',
+  'preview.noBody': 'This node has no body text.',
+
   // ── Follow diagnostics (MindmapView.diagnostics) ──
   'diag.title': 'Mindmap follow diagnostics ({0}, instance alive for {1}s)',
   'diag.mainArea': 'main area',
@@ -202,6 +230,8 @@ const en: Record<MsgKey, string> = {
   'tool.readingLock': 'Mindmap is locked while the note is in Reading view',
   'tool.expand': 'Expand all',
   'tool.collapse': 'Collapse all',
+  'tool.preview': 'Preview node body',
+  'tool.previewClose': 'Close body preview',
   'tool.style': 'Style settings',
   'direction.right': 'Branches right',
   'direction.left': 'Branches left',
@@ -242,6 +272,10 @@ const en: Record<MsgKey, string> = {
     'Clicking a node scrolls the note to the matching heading and highlights it. ' +
     'Only notes already on screen are scrolled — no new tabs are opened. ' +
     'When the note is not open (e.g. after "Open as mindmap"), clicking only selects the node.',
+  'settings.hoverPreview': 'Hover preview',
+  'settings.hoverPreviewDesc':
+    'After resting on a node, render the body beneath its heading with Obsidian’s reading view, ' +
+    'including HTML, images, math and embeds. The eye button in the toolbar opens a pinned side preview.',
   'settings.lockFile': 'Pin to one note',
   'settings.lockFileDesc': 'The mindmap stops following note switches and stays on the note it was opened with.',
   'settings.gracefulAnimation': 'Graceful animation',

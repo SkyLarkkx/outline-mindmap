@@ -17,13 +17,22 @@ export class TFile {
 }
 export class Component {
   cleanups: (() => void)[] = []
+  loaded = false
+  load(): void { this.loaded = true }
   register(fn: () => void): void { this.cleanups.push(fn) }
   registerDomEvent(el: any, type: string, callback: any, capture?: boolean): void {
     el.addEventListener(type, callback, capture)
     this.register(() => el.removeEventListener(type, callback, capture))
   }
   registerEvent(_event: unknown): void {}
-  unload(): void { for (const fn of this.cleanups.reverse()) fn() }
+  unload(): void { this.loaded = false; for (const fn of this.cleanups.reverse()) fn() }
+}
+export class MarkdownRenderer {
+  static async render(_app: unknown, markdown: string, el: any, _sourcePath: string, component: Component): Promise<void> {
+    if (!component.loaded) throw new Error('MarkdownRenderer component must be loaded')
+    el.addClass('markdown-rendered')
+    el.appendText(markdown)
+  }
 }
 export class ItemView extends Component {
   app: any

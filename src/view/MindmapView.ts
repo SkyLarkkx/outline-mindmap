@@ -58,6 +58,7 @@ import { DEFAULT_STYLE, type MindmapStyle } from '../settings/StyleStore'
 import type { NoteMode } from '../settings/OpenAsStore'
 import type { ViewportState } from '../settings/ViewPreferences'
 import { t } from '../i18n'
+import { BodyPreview, type BodyPreviewState } from './BodyPreview'
 import { Canvas } from './Canvas'
 import { Connectors } from './Connectors'
 import { DragController, subtreeIds, type DropResult } from './DragController'
@@ -66,13 +67,19 @@ import { fileToShow } from './follow'
 import { NodeRenderer } from './NodeRenderer'
 import { Toolbar } from './Toolbar'
 import { LayoutMotion, MOTION_NODE_LIMIT } from './LayoutMotion'
+import { nodeBody } from './body'
 import { searchState, searchTargets, type SearchState } from './search'
-import { clearMeasureCache, measureNode, readFont, toggleSize, type FontSpec } from './measure'
+import { clearMeasureCache, readFont, toggleSize, type FontSpec } from './measure'
+import { clearRichMeasureCache, isRichNode, measureNodeForLayout, measureRichNodes } from './richMeasure'
 
 export const VIEW_TYPE_MINDMAP = 'outline-mindmap'
 
 /** 草稿节点的 id。它不在文件里，提交前一直只活在内存树上。 */
 const DRAFT_ID = '__draft__'
+/** 悬停多久才打开正文预览，避免掠过节点时一路闪窗。 */
+const HOVER_PREVIEW_DELAY = 320
+/** 离开节点 / 预览后再等一会儿；为指针跨过节点和面板之间的缝隙留时间。 */
+const HOVER_PREVIEW_HIDE_DELAY = 180
 
 /**
  * 一次编辑会话。
@@ -99,6 +106,11 @@ export class MindmapView extends ItemView {
   private bridge!: DocumentBridge
   private toolbar!: Toolbar
   private empty!: HTMLElement
+  private nodeLayer!: HTMLElement
+  private bodyPreview!: BodyPreview
+  private previewShowTimer: number | null = null
+  private previewHideTimer: number | null = null
+  private hoveredNodeId: string | null = null
 
   private file: TFile | null = null
   private tree: MindTree | null = null
@@ -481,12 +493,16 @@ export class MindmapView extends ItemView {
     // 这里除了「还没适应过画布」的那一次之外什么都不做——侧边栏拖宽拖窄是连续事件，
     // 每一帧都重新布局会卡，而且会把用户调好的缩放比例冲掉。
     this.canvas = new Canvas(host, () => this.resizeCanvas(), {
-      onUserChange: () => this.rememberViewport(),
+      onUserChange: () => {
+        this.rememberViewport()
+        this.hideHoverPreview()
+      },
       onGestureStart: () => {
         this.motion.finish()
         this.drag.cancel()
         this.cancelSession()
         this.flushPending()
+        this.hideHoverPreview()
       },
       panNodes: () => { this.syncLock(); return this.locked },
     })
@@ -501,13 +517,23 @@ export class MindmapView extends ItemView {
       collapseAll: () => this.setAllCollapsed(true),
       toggleLock: () => this.toggleLock(),
       openStyle: () => this.openStyle(),
+      preview: () => this.togglePinnedPreview(),
       afterAction: () => this.canvas.focus(),
     })
 
+    this.bodyPreview = new BodyPreview({
+      app: this.app,
+      host,
+      getAnchor: (nodeId) => this.nodeAnchor(nodeId),
+      onPinnedChange: (pinned) => this.toolbar.setPreviewActive(pinned),
+      onRequestFocus: () => this.canvas.focus(),
+    })
+    this.toolbar.setPreviewActive(false)
+
     this.connectors = new Connectors(this.canvas.content.createSvg('svg', { cls: 'om-svg' }))
 
-    const nodeLayer = this.canvas.content.createDiv({ cls: 'om-nodes' })
-    this.nodeRenderer = new NodeRenderer(nodeLayer)
+    this.nodeLayer = this.canvas.content.createDiv({ cls: 'om-nodes' })
+    this.nodeRenderer = new NodeRenderer(this.nodeLayer)
     // 编辑框挂在节点层【外面】：它不该被 nodeLayer 的委托监听器扫到
     this.editor = new InlineEditor(this.canvas.content, {
       onInput: this.onEditorInput,
@@ -516,7 +542,7 @@ export class MindmapView extends ItemView {
     })
 
     // 拖拽（M6）。它自己在节点图层上委托 4 个 pointer 事件，同样与节点数量无关。
-    this.drag = new DragController(nodeLayer, {
+    this.drag = new DragController(this.nodeLayer, {
       canvas: this.canvas,
       tree: () => this.tree,
       boxes: () => this.boxes,
@@ -527,10 +553,17 @@ export class MindmapView extends ItemView {
     })
 
     // 事件委托：整个图层只有这些监听器，与节点数量无关（第 2 章）
-    this.registerDomEvent(nodeLayer, 'click', this.onLayerClick)
+    this.registerDomEvent(this.nodeLayer, 'click', this.onLayerClick)
+    this.registerDomEvent(this.nodeLayer, 'pointerover', this.onNodePointerOver)
+    this.registerDomEvent(this.nodeLayer, 'pointerout', this.onNodePointerOut)
+    this.registerDomEvent(this.bodyPreview.el, 'pointerenter', this.onPreviewPointerEnter)
+    this.registerDomEvent(this.bodyPreview.el, 'pointerleave', this.onPreviewPointerLeave)
     this.registerDomEvent(this.canvas.viewport, 'dblclick', this.onDoubleClick)
     this.registerDomEvent(this.canvas.viewport, 'keydown', this.onKeyDown)
-    this.registerDomEvent(this.canvas.viewport, 'pointerdown', () => this.motion.finish(), true)
+    this.registerDomEvent(this.canvas.viewport, 'pointerdown', () => {
+      this.motion.finish()
+      this.hideHoverPreview()
+    }, true)
 
     this.bridge = new DocumentBridge(this.app, this.onDocumentChange, this.host.fileHistory,
       file => this.canWriteFile(file))
@@ -586,6 +619,7 @@ export class MindmapView extends ItemView {
         // 换主题 / 改字号 → 测量全部作废
         this.font = null
         clearMeasureCache()
+        clearRichMeasureCache()
         this.draw()
       }),
     )
@@ -611,8 +645,10 @@ export class MindmapView extends ItemView {
     this.clearSearch()
     // 关视图时未提交的编辑一律作废：这时候再往文件里写字，用户根本看不见
     this.cancelSession()
+    this.clearPreviewTimers()
     this.unsubscribeStyle?.()
     this.unsubscribeStyle = null
+    this.bodyPreview?.destroy()
     this.toolbar.destroy()
     this.drag.destroy()
     this.editor.destroy()
@@ -644,6 +680,7 @@ export class MindmapView extends ItemView {
    * 更碰不到渲染路径。拖侧边栏宽度会连着触发几十次，代价也只是几十次指针比较。
    */
   override onResize(): void {
+    this.hideHoverPreview()
     void this.syncActiveFile(false, 'resize')
   }
 
@@ -773,7 +810,10 @@ export class MindmapView extends ItemView {
     // 多彩标题：层级 class 常年在节点上，着不着色由根上的这一个开关说了算
     root.toggleClass('om-level-colors', next.colorByLevel)
     // 字号缩放变了 → 之前量出来的每一个宽高都作废
-    if (changed && prev.fontScale !== next.fontScale) this.font = null
+    if (changed && prev.fontScale !== next.fontScale) {
+      this.font = null
+      clearRichMeasureCache()
+    }
     this.style = next
     this.direction = next.direction
     return changed
@@ -832,6 +872,8 @@ export class MindmapView extends ItemView {
     this.canvas.cancelGesture()
     this.drag.cancel()
     this.motion?.reset()
+    this.clearPreviewTimers()
+    this.bodyPreview?.close(false)
     if (this.search?.path !== next?.path) this.clearSearch()
     this.cancelSession()
     this.file = next
@@ -932,6 +974,7 @@ export class MindmapView extends ItemView {
     if (this.search && !this.search.pending && !searchTargets(this.tree, this.search.state)) this.clearSearch()
     if (this.search) this.applySearch()
     else this.draw()
+    this.syncBodyPreview()
   }
 
   /** 编辑结束后补上编辑期间被挡下的外部变更。 */
@@ -971,8 +1014,12 @@ export class MindmapView extends ItemView {
       return
     }
 
-    const boxes = layout(tree, this.layoutOptions())
     const nodes = visibleNodes(tree)
+    // 只有真的存在 HTML 节点才付 DOM 测量的代价；纯文字树仍走原来的 canvas 路径。
+    if (nodes.some(node => isRichNode(node.text))) {
+      measureRichNodes(nodes, this.currentFont(), this.contentEl)
+    }
+    const boxes = layout(tree, this.layoutOptions())
     const animated = motionAllowed && nodes.length <= MOTION_NODE_LIMIT
     this.canvas.setAnimated(animated)
     this.boxes = boxes
@@ -1000,7 +1047,7 @@ export class MindmapView extends ItemView {
       // 根之间的距离跟着纵向间距走，但不小于默认值：纵向间距调大之后，
       // 两棵根挨得比同一棵树里的兄弟还近，看上去就像它们是一家的
       rootGap: Math.max(DEFAULT_LAYOUT.rootGap, this.style.vGap * 2),
-      measure: (node) => measureNode(node.text, font),
+      measure: (node) => measureNodeForLayout(node.text, font),
     }
   }
 
@@ -1073,6 +1120,7 @@ export class MindmapView extends ItemView {
   private readonly onLayerClick = (e: MouseEvent): void => {
     // 拖拽松手后浏览器还会补一个 click，不吃掉它就会顺手跳转到笔记里去
     if (this.drag.consumeClick()) return
+    this.hideHoverPreview()
 
     const target = e.target as HTMLElement
     const host = target.closest<HTMLElement>('.om-node')
@@ -1106,6 +1154,7 @@ export class MindmapView extends ItemView {
 
   private readonly onDoubleClick = (e: MouseEvent): void => {
     if (this.editor.active) return
+    this.hideHoverPreview()
     const id = (e.target as HTMLElement).closest('.om-node')?.getAttribute('data-node-id')
     if (id) {
       // 双击节点 = 编辑它（与 F2 同义）
@@ -1130,6 +1179,174 @@ export class MindmapView extends ItemView {
     this.bridge.revealLine(file, line)
   }
 
+  // ── 正文预览 ────────────────────────────────────────────────
+
+  /**
+   * 鼠标扫过节点时延迟打开正文；真正的内容交给 Obsidian 的 MarkdownRenderer。
+   * 不挂节点级监听器：仍然由 nodeLayer 统一委托。
+   */
+  private readonly onNodePointerOver = (e: PointerEvent): void => {
+    if (!this.host.settings.hoverPreview || this.bodyPreview?.pinned) return
+    if (this.drag.active || this.editor.active || this.session) return
+    const nodeEl = (e.target as HTMLElement | null)?.closest<HTMLElement>('.om-node')
+    const id = nodeEl?.dataset['nodeId']
+    const tree = this.tree
+    if (!nodeEl || !id || !tree) return
+    const related = e.relatedTarget as HTMLElement | null
+    if (related && typeof related.closest === 'function' && nodeEl.contains(related)) return
+    const node = tree.byId.get(id)
+    if (!node || !nodeBody(tree, node)) return
+
+    this.cancelPreviewHide()
+    if (this.hoveredNodeId === id) return
+    this.cancelPreviewShow()
+    this.hoveredNodeId = id
+    this.previewShowTimer = window.setTimeout(() => {
+      this.previewShowTimer = null
+      if (this.hoveredNodeId !== id || !this.host.settings.hoverPreview) return
+      this.showHoverPreview(id)
+    }, HOVER_PREVIEW_DELAY)
+  }
+
+  private readonly onNodePointerOut = (e: PointerEvent): void => {
+    const nodeEl = (e.target as HTMLElement | null)?.closest<HTMLElement>('.om-node')
+    if (!nodeEl) return
+    const related = e.relatedTarget as HTMLElement | null
+    if (related && typeof related.closest === 'function' &&
+        (nodeEl.contains(related) || related.closest('.om-preview'))) return
+    const id = nodeEl.dataset['nodeId']
+    if (id && this.hoveredNodeId === id) this.hoveredNodeId = null
+    this.cancelPreviewShow()
+    this.schedulePreviewHide()
+  }
+
+  private readonly onPreviewPointerEnter = (): void => {
+    this.cancelPreviewHide()
+    this.cancelPreviewShow()
+  }
+
+  private readonly onPreviewPointerLeave = (): void => {
+    if (!this.bodyPreview?.pinned) this.schedulePreviewHide()
+  }
+
+  private showHoverPreview(id: string): void {
+    const tree = this.tree
+    const file = this.file
+    if (!tree || !file || this.bodyPreview?.pinned) return
+    if (this.drag.active || this.editor.active || this.session) return
+    const node = tree.byId.get(id)
+    if (!node) return
+    const body = nodeBody(tree, node)
+    if (!body) return
+    const state = this.previewState(node, body)
+    if (state) this.bodyPreview.showHover(state)
+  }
+
+  /** 工具栏按钮：打开 / 关闭固定预览。触屏和纯键盘用户靠这个入口。 */
+  private togglePinnedPreview(): void {
+    if (!this.file || !this.tree) return
+    if (this.bodyPreview.pinned) {
+      this.bodyPreview.close(true)
+      return
+    }
+    const node = this.selectedNode()
+    if (!node) {
+      new Notice(t('preview.noSelection'))
+      return
+    }
+    const body = nodeBody(this.tree, node)
+    if (!body) {
+      new Notice(t('preview.noBody'))
+      return
+    }
+    const state = this.previewState(node, body)
+    if (!state) return
+    this.hideHoverPreview()
+    this.bodyPreview.showPinned(state)
+  }
+
+  /** 树变了以后，同一个节点的正文跟着更新；节点没了或正文空了就收起。 */
+  private syncBodyPreview(): void {
+    const preview = this.bodyPreview
+    const nodeId = preview?.nodeId
+    if (!preview || !nodeId) return
+    const tree = this.tree
+    const file = this.file
+    if (!tree || !file) {
+      preview.close(false)
+      return
+    }
+    const node = tree.byId.get(nodeId)
+    if (!node) {
+      preview.close(false)
+      return
+    }
+    const body = nodeBody(tree, node)
+    if (!body) {
+      preview.close(false)
+      return
+    }
+    const state = this.previewState(node, body)
+    if (state) preview.update(state)
+  }
+
+  private previewState(node: MindNode, body: NonNullable<ReturnType<typeof nodeBody>>): BodyPreviewState | null {
+    const file = this.file
+    if (!file) return null
+    return {
+      nodeId: node.id,
+      title: node.text,
+      markdown: body.markdown,
+      sourcePath: file.path,
+      fromLine: body.fromLine,
+      toLine: body.toLine,
+    }
+  }
+
+  private nodeAnchor(id: string): DOMRect | null {
+    if (!this.nodeLayer) return null
+    const nodes = Array.from(this.nodeLayer.querySelectorAll<HTMLElement>('.om-node'))
+    for (const node of nodes) {
+      if (node.dataset['nodeId'] === id) return node.getBoundingClientRect()
+    }
+    return null
+  }
+
+  private cancelPreviewShow(): void {
+    if (this.previewShowTimer === null) return
+    window.clearTimeout(this.previewShowTimer)
+    this.previewShowTimer = null
+  }
+
+  private cancelPreviewHide(): void {
+    if (this.previewHideTimer === null) return
+    window.clearTimeout(this.previewHideTimer)
+    this.previewHideTimer = null
+  }
+
+  private schedulePreviewHide(): void {
+    this.cancelPreviewHide()
+    this.previewHideTimer = window.setTimeout(() => {
+      this.previewHideTimer = null
+      if (this.bodyPreview?.pinned) return
+      this.hoveredNodeId = null
+      this.bodyPreview?.hideHover()
+    }, HOVER_PREVIEW_HIDE_DELAY)
+  }
+
+  private hideHoverPreview(): void {
+    this.cancelPreviewShow()
+    this.cancelPreviewHide()
+    this.hoveredNodeId = null
+    this.bodyPreview?.hideHover()
+  }
+
+  private clearPreviewTimers(): void {
+    this.cancelPreviewShow()
+    this.cancelPreviewHide()
+    this.hoveredNodeId = null
+  }
+
   // ── 键盘（M5）───────────────────────────────────────────────
 
   /**
@@ -1143,6 +1360,12 @@ export class MindmapView extends ItemView {
     if (e.key === 'Escape' && this.drag.active) {
       e.preventDefault()
       this.drag.cancel()
+      return
+    }
+    if (e.key === 'Escape' && this.bodyPreview?.visible) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.bodyPreview.close(false)
       return
     }
     const mod = e.ctrlKey || e.metaKey
@@ -1378,6 +1601,7 @@ export class MindmapView extends ItemView {
   }
 
   private openEditor(node: MindNode, text: string): void {
+    this.hideHoverPreview()
     // 进编辑态就只剩这一个选中：多选着开编辑框，用户分不清接下来的操作作用在谁身上
     this.setSelection(node.id)
     this.draw()
