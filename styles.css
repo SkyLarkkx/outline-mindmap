@@ -629,30 +629,42 @@
   color: var(--text-normal);
 }
 
+.om-preview-touch {
+  z-index: 21;
+}
+
 .om-preview.is-hidden {
   display: none;
 }
 
 .om-preview.is-pinned {
   left: auto !important;
-  top: 46px !important;
+  top: auto !important;
   right: 12px;
   bottom: 12px;
-  width: min(420px, 46%);
-  max-height: none;
+  width: min(420px, max(46%, 260px), calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  height: calc(100% - 58px);
+  max-height: calc(100% - 24px);
 }
 
-/* 触屏长按预览：底部面板，松开由视图立即收起。 */
+/* 触屏长按预览：停靠在视图上方，避开 Obsidian 导航栏和导图工具栏；
+   松开时若还没碰过面板由视图收起。 */
 .om-preview.is-touch {
   left: 8px !important;
   right: 8px;
-  top: auto !important;
-  bottom: 8px;
+  top: 46px !important;
+  bottom: auto;
   width: auto;
   max-height: 55%;
+  touch-action: pan-y;
 }
 
 .om-preview.is-touch .om-preview-actions {
+  display: flex;
+}
+
+.om-preview.is-touch .om-preview-pin {
   display: none;
 }
 
@@ -739,8 +751,48 @@
   overflow: auto;
   padding: 4px 14px 14px;
   overscroll-behavior: contain;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* 固定面板的缩放手柄：面板靠右/靠下，拖左上角调整宽高。 */
+.om-preview-resize {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  touch-action: none;
+  cursor: nwse-resize;
+  border-top-left-radius: 10px;
+}
+
+.om-preview.is-pinned .om-preview-resize {
+  display: block;
+}
+
+.om-preview-resize::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  width: 11px;
+  height: 11px;
+  border-left: 2px solid var(--text-faint);
+  border-top: 2px solid var(--text-faint);
+  border-top-left-radius: 3px;
+  opacity: 0.75;
+}
+
+.om-preview.is-resizing {
+  user-select: none;
+}
+
+.om-preview.is-resizing .om-preview-content {
+  user-select: none;
 }
 
 .om-preview-content > :first-child {
@@ -816,12 +868,14 @@
   }
 
   .om-preview.is-pinned {
-    left: 8px !important;
+    left: auto !important;
     right: 8px;
     top: auto !important;
     bottom: 8px;
-    width: auto;
-    max-height: 55%;
+    width: calc(100% - 16px);
+    max-width: calc(100% - 16px);
+    height: 55%;
+    max-height: calc(100% - 20px);
   }
 }
 

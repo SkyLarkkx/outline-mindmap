@@ -114,6 +114,8 @@ export class MindmapView extends ItemView {
   private empty!: HTMLElement
   private nodeLayer!: HTMLElement
   private bodyPreview!: BodyPreview
+  /** 长按预览单独一份实例，和工具栏固定预览互不顶替。 */
+  private touchPreview!: BodyPreview
   private previewShowTimer: number | null = null
   private previewHideTimer: number | null = null
   private hoveredNodeId: string | null = null
@@ -123,6 +125,8 @@ export class MindmapView extends ItemView {
   private longPressStartX = 0
   private longPressStartY = 0
   private touchPreviewOpen = false
+  /** 手指已经碰过预览面板：松手后保留上方面板，方便连续滑动正文。 */
+  private touchPreviewEngaged = false
   private suppressTouchClick = false
   private suppressTouchClickTimer: number | null = null
 
@@ -544,6 +548,17 @@ export class MindmapView extends ItemView {
       onPinnedChange: (pinned) => this.toolbar.setPreviewActive(pinned),
       onRequestFocus: () => this.canvas.focus(),
     })
+    this.touchPreview = new BodyPreview({
+      app: this.app,
+      host,
+      getAnchor: (nodeId) => this.nodeAnchor(nodeId),
+      onTouchClosed: () => {
+        this.touchPreviewOpen = false
+        this.touchPreviewEngaged = false
+        this.resetLongPressTracking()
+      },
+    })
+    this.touchPreview.el.addClass('om-preview-touch')
     this.toolbar.setPreviewActive(false)
 
     this.connectors = new Connectors(this.canvas.content.createSvg('svg', { cls: 'om-svg' }))
@@ -579,12 +594,10 @@ export class MindmapView extends ItemView {
     this.registerDomEvent(this.canvas.viewport, 'contextmenu', this.onTouchContextMenu, true)
     this.registerDomEvent(this.bodyPreview.el, 'pointerenter', this.onPreviewPointerEnter)
     this.registerDomEvent(this.bodyPreview.el, 'pointerleave', this.onPreviewPointerLeave)
+    this.registerDomEvent(this.touchPreview.el, 'pointerdown', this.onTouchPreviewPointerDown, true)
     this.registerDomEvent(this.canvas.viewport, 'dblclick', this.onDoubleClick)
     this.registerDomEvent(this.canvas.viewport, 'keydown', this.onKeyDown)
-    this.registerDomEvent(this.canvas.viewport, 'pointerdown', () => {
-      this.motion.finish()
-      this.hideHoverPreview()
-    }, true)
+    this.registerDomEvent(this.canvas.viewport, 'pointerdown', this.onCanvasPointerDown, true)
 
     this.bridge = new DocumentBridge(this.app, this.onDocumentChange, this.host.fileHistory,
       file => this.canWriteFile(file))
@@ -673,6 +686,7 @@ export class MindmapView extends ItemView {
     this.unsubscribeStyle?.()
     this.unsubscribeStyle = null
     this.bodyPreview?.destroy()
+    this.touchPreview?.destroy()
     this.toolbar.destroy()
     this.drag.destroy()
     this.editor.destroy()
@@ -898,6 +912,7 @@ export class MindmapView extends ItemView {
     this.motion?.reset()
     this.clearPreviewTimers()
     this.bodyPreview?.close(false)
+    this.touchPreview?.close(false)
     if (this.search?.path !== next?.path) this.clearSearch()
     this.cancelSession()
     this.file = next
@@ -1261,12 +1276,27 @@ export class MindmapView extends ItemView {
     if (!this.bodyPreview?.pinned) this.schedulePreviewHide()
   }
 
+  /** 点画布空白 / 节点时收起已经保留下来的长按面板。 */
+  private readonly onCanvasPointerDown = (): void => {
+    this.motion.finish()
+    this.hideHoverPreview()
+    if (this.touchPreviewOpen) this.cancelTouchPreview()
+  }
+
+  /**
+   * 手指进入长按面板后，面板改为“保留”状态：松开原来按在节点上的手指
+   * 不再收起，用户可以继续在正文里滚动；关闭键 / 点画布才收起。
+   */
+  private readonly onTouchPreviewPointerDown = (e: PointerEvent): void => {
+    if (e.pointerType !== 'touch' || !this.touchPreviewOpen) return
+    this.touchPreviewEngaged = true
+  }
+
   // ── 触屏长按正文预览 ────────────────────────────────────────
 
   private readonly onTouchPointerDown = (e: PointerEvent): void => {
     if (e.pointerType !== 'touch') return
     if (this.editor.active || this.session || this.drag.active) return
-    if (this.bodyPreview?.pinned) return
     const target = e.target as HTMLElement | null
     if (!target || target.closest('.om-toggle') || target.closest('.om-preview')) return
     const nodeEl = target.closest<HTMLElement>('.om-node')
@@ -1291,6 +1321,8 @@ export class MindmapView extends ItemView {
 
   private readonly onTouchPointerMove = (e: PointerEvent): void => {
     if (this.longPressPointerId !== e.pointerId) return
+    // 触碰过预览面板后，原来的手指只是“按住来源”，面板已经独立存活。
+    if (this.touchPreviewEngaged && this.touchPreviewOpen) return
     const dx = e.clientX - this.longPressStartX
     const dy = e.clientY - this.longPressStartY
     if (Math.hypot(dx, dy) <= TOUCH_PREVIEW_MOVE_PX) return
@@ -1305,6 +1337,12 @@ export class MindmapView extends ItemView {
   private readonly onTouchPointerUp = (e: PointerEvent): void => {
     if (this.longPressPointerId !== e.pointerId) return
     const hadPreview = this.touchPreviewOpen
+    if (hadPreview && this.touchPreviewEngaged) {
+      this.resetLongPressTracking()
+      this.suppressTouchClick = true
+      this.scheduleTouchClickClear()
+      return
+    }
     this.cancelTouchPreview()
     if (hadPreview) {
       this.suppressTouchClick = true
@@ -1346,21 +1384,28 @@ export class MindmapView extends ItemView {
     // Long press takes priority over node dragging; suppress the follow-up click.
     this.drag.cancel()
     this.touchPreviewOpen = true
+    this.touchPreviewEngaged = false
     this.suppressTouchClick = true
-    this.bodyPreview.showTouch(state)
+    this.touchPreview.showTouch(state)
   }
 
-  private cancelTouchPreview(): void {
+  private resetLongPressTracking(): void {
     if (this.longPressTimer !== null) {
       window.clearTimeout(this.longPressTimer)
       this.longPressTimer = null
     }
     this.longPressPointerId = null
     this.longPressNodeId = null
-    if (this.touchPreviewOpen) {
-      this.touchPreviewOpen = false
-      this.bodyPreview?.hideTouch()
-    }
+    this.longPressStartX = 0
+    this.longPressStartY = 0
+  }
+
+  private cancelTouchPreview(): void {
+    this.resetLongPressTracking()
+    this.touchPreviewEngaged = false
+    if (!this.touchPreviewOpen) return
+    this.touchPreviewOpen = false
+    this.touchPreview?.hideTouch()
   }
 
   private scheduleTouchClickClear(): void {
@@ -1420,7 +1465,11 @@ export class MindmapView extends ItemView {
 
   /** 树变了以后，同一个节点的正文跟着更新；节点没了或正文空了就收起。 */
   private syncBodyPreview(): void {
-    const preview = this.bodyPreview
+    this.syncPreviewInstance(this.bodyPreview)
+    this.syncPreviewInstance(this.touchPreview)
+  }
+
+  private syncPreviewInstance(preview: BodyPreview | undefined): void {
     const nodeId = preview?.nodeId
     if (!preview || !nodeId) return
     const tree = this.tree
@@ -1499,6 +1548,7 @@ export class MindmapView extends ItemView {
     this.cancelPreviewHide()
     this.hoveredNodeId = null
     this.cancelTouchPreview()
+    this.touchPreviewEngaged = false
     this.clearTouchClickSuppression()
   }
 
@@ -1517,7 +1567,7 @@ export class MindmapView extends ItemView {
       this.drag.cancel()
       return
     }
-    if (e.key === 'Escape' && this.bodyPreview?.visible) {
+    if (e.key === 'Escape' && (this.bodyPreview?.visible || this.touchPreview?.visible)) {
       e.preventDefault()
       e.stopPropagation()
       this.cancelTouchPreview()

@@ -47,6 +47,7 @@ const zh = {
   'preview.error': '正文渲染失败，下面显示 Markdown 源码。',
   'preview.pin': '固定到侧栏',
   'preview.close': '关闭正文预览',
+  'preview.resize': '拖动调整预览大小',
   'preview.noSelection': '请先选中一个节点。',
   'preview.noBody': '这个节点没有正文。',
 
@@ -189,6 +190,7 @@ const en: Record<MsgKey, string> = {
   'preview.error': 'Failed to render the body; showing its Markdown source instead.',
   'preview.pin': 'Pin to side panel',
   'preview.close': 'Close body preview',
+  'preview.resize': 'Drag to resize the preview',
   'preview.noSelection': 'Select a node first.',
   'preview.noBody': 'This node has no body text.',
 

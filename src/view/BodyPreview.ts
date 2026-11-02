@@ -36,15 +36,27 @@ export interface BodyPreviewOptions {
   host: HTMLElement
   getAnchor: (nodeId: string) => DOMRect | null
   onPinnedChange?: (pinned: boolean) => void
+  /** 触屏面板自行关闭（关闭键）后，让视图把长按状态一起复位。 */
+  onTouchClosed?: () => void
   /** 预览按钮/关闭键操作后把焦点还给画布。 */
   onRequestFocus?: () => void
 }
 
 const EDGE_MARGIN = 12
 const HOVER_GAP = 10
+const MIN_PINNED_WIDTH = 260
+const MIN_PINNED_HEIGHT = 160
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+interface ResizeSession {
+  pointerId: number
+  startX: number
+  startY: number
+  width: number
+  height: number
 }
 
 export class BodyPreview {
@@ -55,12 +67,16 @@ export class BodyPreview {
   private readonly contentEl: HTMLElement
   private readonly pinButton: HTMLButtonElement
   private readonly closeButton: HTMLButtonElement
+  private readonly resizeHandle: HTMLElement
 
   private state: BodyPreviewState | null = null
   private mode: BodyPreviewMode = 'hover'
   private open = false
   private renderToken = 0
   private renderComponent: Component | null = null
+  /** 固定面板手动调过的大小；关掉再打开仍然沿用。 */
+  private pinnedSize: { width: number; height: number } | null = null
+  private resize: ResizeSession | null = null
 
   constructor(private readonly options: BodyPreviewOptions) {
     this.el = options.host.createDiv({ cls: 'om-preview' })
@@ -89,10 +105,19 @@ export class BodyPreview {
     this.contentEl = this.el.createDiv({ cls: 'om-preview-content' })
     this.contentEl.addClass('markdown-rendered')
 
+    this.resizeHandle = this.el.createDiv({ cls: 'om-preview-resize' })
+    this.resizeHandle.setAttribute('role', 'separator')
+    this.resizeHandle.setAttribute('aria-label', t('preview.resize'))
+
     this.pinButton.addEventListener('click', this.onPinClick)
     this.closeButton.addEventListener('click', this.onCloseClick)
     this.contentEl.addEventListener('click', this.onContentClick)
     this.el.addEventListener('keydown', this.onKeyDown)
+    this.resizeHandle.addEventListener('pointerdown', this.onResizePointerDown)
+    this.resizeHandle.addEventListener('pointermove', this.onResizePointerMove)
+    this.resizeHandle.addEventListener('pointerup', this.onResizePointerUp)
+    this.resizeHandle.addEventListener('pointercancel', this.onResizePointerUp)
+    this.resizeHandle.addEventListener('lostpointercapture', this.onResizePointerUp)
   }
 
   get pinned(): boolean {
@@ -115,11 +140,12 @@ export class BodyPreview {
     this.el.addClass('is-hover')
     this.open = true
     this.el.removeClass('is-hidden')
+    this.clearPinnedSizeStyles()
     this.setState(state)
     this.positionHover()
   }
 
-  /** 触屏长按：停靠为底部面板，松开后由视图调用 hideTouch()。 */
+  /** 触屏长按：停靠为视图上方面板，松开后由视图调用 hideTouch()。 */
   showTouch(state: BodyPreviewState): void {
     if (this.mode === 'pinned') return
     this.mode = 'touch'
@@ -127,7 +153,8 @@ export class BodyPreview {
     this.el.removeClass('is-hover', 'is-pinned')
     this.el.addClass('is-touch')
     this.el.removeClass('is-hidden')
-    // 悬浮态的 left/top 是行内样式；touch 模式用 CSS 固定底部。
+    // 悬浮态的 left/top 是行内样式；touch 模式用 CSS 固定上方。
+    this.clearPinnedSizeStyles()
     this.el.setCssStyles({ left: '', top: '' })
     this.setState(state)
   }
@@ -142,6 +169,7 @@ export class BodyPreview {
     this.el.removeClass('is-hidden')
     // 悬浮态留下的 left / top 是行内样式，会盖住 .is-pinned 的 right / top。
     this.el.setCssStyles({ left: '', top: '' })
+    this.applyPinnedSize()
     this.setState(state)
     if (!wasPinned) this.options.onPinnedChange?.(true)
   }
@@ -165,6 +193,8 @@ export class BodyPreview {
   close(restoreFocus = false): void {
     const wasPinned = this.pinned
     const wasOpen = this.open
+    const closedMode = this.mode
+    this.endResize()
     this.renderToken++
     this.disposeRender()
     this.state = null
@@ -172,20 +202,28 @@ export class BodyPreview {
     this.mode = 'hover'
     this.el.addClass('is-hidden')
     this.el.removeClass('is-pinned', 'is-hover', 'is-touch')
+    this.clearPinnedSizeStyles()
     this.contentEl.empty()
     this.titleEl.setText('')
     this.metaEl.setText('')
     if (wasPinned) this.options.onPinnedChange?.(false)
+    if (closedMode === 'touch') this.options.onTouchClosed?.()
     if (restoreFocus && wasOpen) this.options.onRequestFocus?.()
   }
 
   destroy(): void {
+    this.endResize()
     this.renderToken++
     this.disposeRender()
     this.pinButton.removeEventListener('click', this.onPinClick)
     this.closeButton.removeEventListener('click', this.onCloseClick)
     this.contentEl.removeEventListener('click', this.onContentClick)
     this.el.removeEventListener('keydown', this.onKeyDown)
+    this.resizeHandle.removeEventListener('pointerdown', this.onResizePointerDown)
+    this.resizeHandle.removeEventListener('pointermove', this.onResizePointerMove)
+    this.resizeHandle.removeEventListener('pointerup', this.onResizePointerUp)
+    this.resizeHandle.removeEventListener('pointercancel', this.onResizePointerUp)
+    this.resizeHandle.removeEventListener('lostpointercapture', this.onResizePointerUp)
     this.el.remove()
     this.state = null
     this.open = false
@@ -248,6 +286,27 @@ export class BodyPreview {
     this.renderComponent = null
   }
 
+  private applyPinnedSize(): void {
+    if (!this.pinnedSize) return
+    this.el.setCssStyles({
+      width: `${this.pinnedSize.width}px`,
+      height: `${this.pinnedSize.height}px`,
+    })
+  }
+
+  private clearPinnedSizeStyles(): void {
+    this.el.setCssStyles({ width: '', height: '' })
+  }
+
+  private endResize(): void {
+    const session = this.resize
+    this.resize = null
+    this.el.removeClass('is-resizing')
+    if (session && this.resizeHandle.hasPointerCapture?.(session.pointerId)) {
+      this.resizeHandle.releasePointerCapture?.(session.pointerId)
+    }
+  }
+
   private positionHover(): void {
     if (this.mode !== 'hover' || !this.open || !this.state) return
     const anchor = this.options.getAnchor(this.state.nodeId)
@@ -308,5 +367,52 @@ export class BodyPreview {
     e.preventDefault()
     e.stopPropagation()
     this.close(true)
+  }
+
+  // ── 固定面板缩放 ────────────────────────────────────────────
+
+  private readonly onResizePointerDown = (e: PointerEvent): void => {
+    if (this.mode !== 'pinned' || !this.open) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = this.el.getBoundingClientRect()
+    this.resize = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      width: rect.width,
+      height: rect.height,
+    }
+    this.el.addClass('is-resizing')
+    this.resizeHandle.setPointerCapture?.(e.pointerId)
+  }
+
+  private readonly onResizePointerMove = (e: PointerEvent): void => {
+    const session = this.resize
+    if (!session || session.pointerId !== e.pointerId) return
+    const host = this.el.parentElement
+    if (!host) return
+    e.preventDefault()
+    e.stopPropagation()
+    const hostRect = host.getBoundingClientRect()
+    const panelRect = this.el.getBoundingClientRect()
+    const maxWidth = Math.max(1, hostRect.width - EDGE_MARGIN * 2)
+    const bottom = Math.max(0, hostRect.bottom - panelRect.bottom)
+    const maxHeight = Math.max(1, hostRect.height - bottom - EDGE_MARGIN)
+    const minWidth = Math.min(MIN_PINNED_WIDTH, maxWidth)
+    const minHeight = Math.min(MIN_PINNED_HEIGHT, maxHeight)
+    // 面板靠右 / 靠下，所以拖左上角时：向左变宽、向上变高。
+    const width = clamp(session.width - (e.clientX - session.startX), minWidth, maxWidth)
+    const height = clamp(session.height - (e.clientY - session.startY), minHeight, maxHeight)
+    this.pinnedSize = { width, height }
+    this.el.setCssStyles({ width: `${width}px`, height: `${height}px` })
+  }
+
+  private readonly onResizePointerUp = (e: PointerEvent): void => {
+    if (!this.resize || this.resize.pointerId !== e.pointerId) return
+    e.preventDefault()
+    e.stopPropagation()
+    this.endResize()
   }
 }

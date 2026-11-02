@@ -33,6 +33,10 @@ export class FakeElement {
   shown = true
   parent: FakeElement | null = null
 
+  get parentElement(): FakeElement | null {
+    return this.parent
+  }
+
   constructor(readonly tagName = 'div', readonly fragment = false) {}
 
   createEl(tag: string, options?: { cls?: string; text?: string }): FakeElement {
